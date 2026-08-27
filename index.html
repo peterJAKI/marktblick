@@ -316,7 +316,8 @@ Vorlagen: <a href="#" onclick="demoPreset(2,1);return false" style="color:#2962f
 <div id="demo-status" class="such-hinweis"></div>
 <div id="demo-positionen" style="max-width:640px;margin:0 auto;padding:10px"></div>
 <div class="rechner" style="max-width:640px">
-<div class="rechner-titel">📈 Gewinn/Verlust-Verlauf</div>
+<div class="rechner-titel" id="titel-dgv" onclick="demoGvUmschalten()"><span class="rechner-pfeil" id="pfeil-dgv">▾</span>📈 Gewinn/Verlust-Verlauf</div>
+<div class="rechner-body" id="body-dgv">
 <div class="rechner-zeile" style="justify-content:space-around;text-align:center;font-size:13px">
 <div>Realisiert<br><b id="demo-realisiert">–</b></div>
 <div>Offen (Positionen)<br><b id="demo-unreal">–</b></div>
@@ -324,6 +325,7 @@ Vorlagen: <a href="#" onclick="demoPreset(2,1);return false" style="color:#2962f
 </div>
 <div id="demo-chart" style="height:200px;margin-top:8px"></div>
 <div class="chart-hinweis">Linie über 10.000 € = im Plus (grün), darunter = im Minus (rot). „Realisiert" = bei Verkäufen festgemachter Gewinn/Verlust, „Offen" = aktueller Buchgewinn/-verlust der noch gehaltenen Coins.</div>
+</div>
 </div>
 <div class="rechner" style="max-width:640px">
 <div class="rechner-titel">📜 Verlauf</div>
@@ -361,7 +363,12 @@ function rechnerUmschalten(id){
   localStorage.setItem('mb_rechner_zu',JSON.stringify(z));
   wendeRechnerZustandAn(id);
 }
-['kr1','kr2','ak1','ak2'].forEach(wendeRechnerZustandAn);
+(function(){var z=rechnerZustand();if(z.dgv===undefined){z.dgv=true;localStorage.setItem('mb_rechner_zu',JSON.stringify(z));}})();
+['kr1','kr2','ak1','ak2','dgv'].forEach(wendeRechnerZustandAn);
+function demoGvUmschalten(){
+  rechnerUmschalten('dgv');
+  if(!rechnerZustand().dgv){setTimeout(function(){demoWerteAktualisieren();},40);}
+}
 
 function getEigeneCoins(){var d=localStorage.getItem('mb_eigene_coins');return d?JSON.parse(d):[];}
 function speichereEigeneCoins(a){localStorage.setItem('mb_eigene_coins',JSON.stringify(a));}
@@ -1543,15 +1550,18 @@ function demoChartNeu(depot,total){
 function demoChartPflege(depot,total){
   var jetzt=Date.now();
   var force=demoTradeFlag;demoTradeFlag=false;
-  if(!demoSerie){demoChartNeu(depot,total);demoLetzterEquity=jetzt;return;}
-  if(force||jetzt-demoLetzterEquity>60000){
+  var neuerPunkt=force||jetzt-demoLetzterEquity>60000;
+  // Verlauf immer mitschreiben – auch wenn der Bereich zugeklappt ist
+  if(neuerPunkt){
     demoLetzterEquity=jetzt;
     demoEquityPunkt(depot,total);
     demoSpeichern(depot);
-    demoChartNeu(depot,total);
-  }else{
-    demoSerie.update({time:demoLiveT,value:Math.round(total*100)/100});
   }
+  // Chart nur zeichnen, wenn der Bereich offen ist
+  var body=document.getElementById('body-dgv');
+  if(body&&body.classList.contains('zu'))return;
+  if(!demoSerie||neuerPunkt){demoChartNeu(depot,total);return;}
+  demoSerie.update({time:demoLiveT,value:Math.round(total*100)/100});
 }
 
 function demoSignalTf(tf){
