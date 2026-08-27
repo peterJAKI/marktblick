@@ -1788,6 +1788,7 @@ function demoNachTrade(){demoFormulareAufbauen();demoWerteAktualisieren();demoCh
 function demoKaufen(){
   var r=demoKaufCore(document.getElementById('demo-kauf-coin').value,parseFloat(document.getElementById('demo-kauf-betrag').value));
   document.getElementById('demo-status').textContent=r.text;
+  if(r.ok)document.getElementById('demo-kauf-betrag').value='';
   demoNachTrade();
 }
 function demoMengeAlles(){
@@ -1811,6 +1812,7 @@ function chartKaufen(){
   var id=chartCoinId();
   var r=demoKaufCore(id,parseFloat(document.getElementById('chart-kauf-betrag').value));
   document.getElementById('chart-trade-info').textContent=r.text;
+  if(r.ok)document.getElementById('chart-kauf-betrag').value='';
   demoNachTrade();
 }
 function chartVerkaufenAlles(){
