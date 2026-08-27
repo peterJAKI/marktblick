@@ -1733,6 +1733,11 @@ function demoBotStatusZeigen(){
   if(!(depot.bots&&depot.bots.length))return;
   if(demoBotEingriffe(depot))demoFormulareAufbauen();
 }
+function demoBotRestZeit(b){
+  if(!(b.maxMin>0&&b.startZeit))return '';
+  var m=Math.round((b.startZeit+b.maxMin*60000-Date.now())/60000);
+  return m>=1?'⏱️ noch '+m+' Min.':'⏱️ Zeit fast um';
+}
 // Liste der laufenden Automatiken mit eigenem Stopp-Knopf
 function demoBotListeZeigen(){
   var el=document.getElementById('demo-bot-liste');
@@ -1746,7 +1751,7 @@ function demoBotListeZeigen(){
           : '📈 Trailing ab +'+eur(b.gewinnEuro)+' · vorher Stopp −'+eur(b.verlustEuro))
       : 'Ziel +'+eur(b.gewinnEuro)+' / −'+eur(b.verlustEuro);
     return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:3px 0">'
-      +'<span>'+(b.richtung==='short'?'🔻 Short':'▲ Long')+' <b>'+demoName(b.coinId)+'</b> · '+eur(b.einsatz)+' · '+ziel+(b.maxMin>0?' · ⏱️ max '+b.maxMin+' Min.':'')+' · Prüfung alle '+b.pruefMin+' Min.</span>'
+      +'<span>'+(b.richtung==='short'?'🔻 Short':'▲ Long')+' <b>'+demoName(b.coinId)+'</b> · '+eur(b.einsatz)+' · '+ziel+(b.maxMin>0?' · '+demoBotRestZeit(b)+' (max '+b.maxMin+')':'')+' · Prüfung alle '+b.pruefMin+' Min.</span>'
       +'<button class="grau" style="padding:4px 10px" onclick="demoBotStop(\''+b.id+'\')">⏹️ Stopp</button></div>';
   }).join('');
 }
@@ -1829,7 +1834,7 @@ function demoUebersichtZeigen(depot){
       var zielKurz=b.trailing
         ? (b.trailAktiv?'📈 Trailing, Verk. bei '+eur((b.trailHoch||0)-b.verlustEuro):'📈 Trailing ab +'+eur(b.gewinnEuro))
         : 'Ziel +'+eur(b.gewinnEuro)+' / −'+eur(b.verlustEuro);
-      out+='<div><b>'+label+':</b> '+fmt(pl,b.einsatz>0?pl/b.einsatz*100:0)+' <span style="color:#ddd">· '+zielKurz+(b.maxMin>0?' · ⏱️ max '+b.maxMin+' Min.':'')+'</span></div>';
+      out+='<div><b>'+label+':</b> '+fmt(pl,b.einsatz>0?pl/b.einsatz*100:0)+' <span style="color:#ddd">· '+zielKurz+(b.maxMin>0?' · '+demoBotRestZeit(b):'')+'</span></div>';
     });
   }else{
     out+='<div style="color:#ddd"><b>🤖 Automatik:</b> keine läuft</div>';
@@ -1851,6 +1856,7 @@ function demoWerteAktualisieren(){
   if(demoAutoStopPruefen()){demoFormulareAufbauen();}
   var depot=demoLaden();
   demoUebersichtZeigen(depot);
+  demoBotListeZeigen();
   var posWert=0,html='';
   Object.keys(depot.positionen).forEach(function(id){
     var p=depot.positionen[id];
