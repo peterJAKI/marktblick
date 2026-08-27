@@ -251,6 +251,7 @@ h1{margin:0;font-size:22px}
 <div class="rechner">
 <div class="rechner-titel">👁️ Offene Positionen auf einen Blick</div>
 <div id="demo-uebersicht" style="font-size:14px;line-height:1.6"></div>
+<div id="demo-risiko" style="font-size:13px;margin-top:6px;border-top:1px solid #2c2c2c;padding-top:6px"></div>
 </div>
 <div class="rechner">
 <div class="rechner-titel">🤖 Automatik — kaufen/shorten &amp; von selbst verkaufen</div>
@@ -388,6 +389,10 @@ Vorlagen: <a href="#" onclick="demoPreset(2,1);return false" style="color:#2962f
 <div id="demo-chart" style="height:200px;margin-top:8px"></div>
 <div class="chart-hinweis">Linie über 10.000 € = im Plus (grün), darunter = im Minus (rot). „Realisiert" = bei Verkäufen festgemachter Gewinn/Verlust, „Offen" = aktueller Buchgewinn/-verlust der noch gehaltenen Coins.</div>
 </div>
+</div>
+<div class="rechner" style="max-width:640px">
+<div class="rechner-titel">📊 Statistik (abgeschlossene Trades)</div>
+<div id="demo-statistik" style="font-size:13px;color:#ccc;line-height:1.7">Noch keine abgeschlossenen Trades.</div>
 </div>
 <div class="rechner" style="max-width:640px">
 <div class="rechner-titel">📜 Verlauf</div>
@@ -1710,6 +1715,30 @@ function demoPosGV(id,depot){
   }
   return null;
 }
+function demoStatistikZeigen(depot){
+  var el=document.getElementById('demo-statistik');
+  if(!el)return;
+  var trades=(depot.verlauf||[]).filter(function(t){return (t.art==='verkauf'||t.art==='decken')&&typeof t.gv==='number';});
+  if(!trades.length){el.textContent='Noch keine abgeschlossenen Trades.';return;}
+  var wins=trades.filter(function(t){return t.gv>=0;});
+  var losses=trades.filter(function(t){return t.gv<0;});
+  var sumWin=wins.reduce(function(a,t){return a+t.gv;},0);
+  var sumLoss=losses.reduce(function(a,t){return a+t.gv;},0);
+  var best=trades.reduce(function(a,t){return t.gv>a.gv?t:a;});
+  var worst=trades.reduce(function(a,t){return t.gv<a.gv?t:a;});
+  var q=function(n){return (n/trades.length*100).toFixed(0)+' %';};
+  var zeile=function(label,wert){return '<div>'+label+': <b>'+wert+'</b></div>';};
+  var g=function(n){return '<span class="'+(n>=0?'up':'down')+'">'+(n>=0?'+':'')+eur(n)+'</span>';};
+  el.innerHTML=
+    zeile('Trades gesamt',trades.length)
+    +zeile('Gewinn-Trades',wins.length+' ('+q(wins.length)+')')
+    +zeile('Verlust-Trades',losses.length+' ('+q(losses.length)+')')
+    +zeile('Ø Gewinn je Gewinn-Trade',wins.length?g(sumWin/wins.length):'–')
+    +zeile('Ø Verlust je Verlust-Trade',losses.length?g(sumLoss/losses.length):'–')
+    +zeile('Bester Trade',g(best.gv)+' <span style="color:#888">('+best.name+', '+new Date(best.zeit).toLocaleDateString('de-DE')+')</span>')
+    +zeile('Schlechtester Trade',g(worst.gv)+' <span style="color:#888">('+worst.name+', '+new Date(worst.zeit).toLocaleDateString('de-DE')+')</span>')
+    +zeile('Summe aller abgeschlossenen Trades',g(sumWin+sumLoss));
+}
 function demoUebersichtZeigen(depot){
   var el=document.getElementById('demo-uebersicht');
   if(!el)return;
@@ -1839,6 +1868,16 @@ function demoWerteAktualisieren(){
   setGV('demo-gv-chart',gGV);
   demoChartPflege(depot,gesamt);
   demoTresorChartPflege(depot);
+  // Risiko-Anzeige: wie viel des Gesamtwerts steckt gerade in offenen Positionen
+  var rEl=document.getElementById('demo-risiko');
+  if(rEl){
+    var risiko=posWert+shortLiab;
+    var rp=gesamt>0?risiko/gesamt*100:0;
+    var farbe=rp<25?'#4caf50':(rp<60?'#ff9800':'#f44336');
+    if(risiko<0.01){rEl.innerHTML='<span style="color:#888">⚖️ Aktuell im Risiko: 0 % – kein Geld in offenen Positionen.</span>';}
+    else rEl.innerHTML='⚖️ Aktuell im Risiko: <b style="color:'+farbe+'">'+rp.toFixed(0)+' %</b> deines Gesamtwerts <span style="color:#888">('+eur(risiko)+' von '+eur(gesamt)+')</span>';
+  }
+  demoStatistikZeigen(depot);
   var vHtml=depot.verlauf.slice(0,20).map(function(t){
     if(t.art==='tresor'){
       return '<div style="padding:6px 0;border-bottom:1px solid #2c2c2c">'
@@ -2168,7 +2207,7 @@ function demoVerkaufCore(id,menge,opt){
   if(pos.menge<=1e-12)delete depot.positionen[id];
   depot.bar+=netto;
   var gv=netto-kostenanteil;
-  depot.verlauf.unshift({zeit:Date.now(),art:'verkauf',name:demoName(id),menge:menge,preis:preis,betrag:netto,brutto:brutto,gebuehr:gebuehr});
+  depot.verlauf.unshift({zeit:Date.now(),art:'verkauf',name:demoName(id),menge:menge,preis:preis,betrag:netto,brutto:brutto,gebuehr:gebuehr,gv:gv});
   var gesichert=0;
   if(opt&&opt.gewinnInTresor){
     if(gv>0){depot.bar-=gv;demoTresorAendern(depot,gv,'Gewinn gesichert (Verkauf)');gesichert=gv;}
@@ -2224,7 +2263,7 @@ function demoShortDeckenCore(id,menge,opt){
   if(s.menge<=1e-12)delete depot.shorts[id];
   depot.bar-=kosten;
   var gv=erloesAnteil-kosten;
-  depot.verlauf.unshift({zeit:Date.now(),art:'decken',name:demoName(id),menge:menge,preis:preis,betrag:kosten,gebuehr:gebuehr});
+  depot.verlauf.unshift({zeit:Date.now(),art:'decken',name:demoName(id),menge:menge,preis:preis,betrag:kosten,gebuehr:gebuehr,gv:gv});
   var gesichert=0;
   if(opt&&opt.gewinnInTresor){
     if(gv>0){depot.bar-=gv;demoTresorAendern(depot,gv,'Gewinn gesichert (Short zu)');gesichert=gv;}
