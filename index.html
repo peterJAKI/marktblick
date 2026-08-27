@@ -1533,7 +1533,8 @@ function demoAutoStopPruefen(){
   demoTradeFlag=true;
   try{demoBeep();}catch(e){}
   var b=document.getElementById('demo-alarm');
-  if(b){b.style.display='block';b.innerHTML='🔔 <b>'+new Date().toLocaleTimeString('de-DE')+'</b> – automatisch verkauft:<br>'+msgs.join('<br>');}
+  if(b){b.style.display='block';b.innerHTML=demoAlarmXBtn()+'🔔 <b>'+new Date().toLocaleTimeString('de-DE')+'</b> – automatisch verkauft:<br>'+msgs.join('<br>');}
+  demoAlarmBannerIstSignal=false;
   var st=document.getElementById('demo-status');if(st)st.innerHTML=msgs.join('<br>');
   return true;
 }
@@ -1541,10 +1542,14 @@ function demoAutoStopPruefen(){
 // --- Automatik / Bots (mehrere parallel, je Coin eine) ---
 var demoBotLaeuft=false;
 var demoBotTimers={};
+var demoAlarmBannerIstSignal=false;
+function demoAlarmZu(){var b=document.getElementById('demo-alarm');if(b)b.style.display='none';demoAlarmBannerIstSignal=false;}
+function demoAlarmXBtn(){return '<span onclick="demoAlarmZu()" style="float:right;cursor:pointer;color:#aaa">✕</span>';}
 function demoBotAlarm(text){
   try{demoBeep();}catch(e){}
   var b=document.getElementById('demo-alarm');
-  if(b){b.style.display='block';b.innerHTML='🔔 <b>'+new Date().toLocaleTimeString('de-DE')+'</b><br>'+text;}
+  if(b){b.style.display='block';b.innerHTML=demoAlarmXBtn()+'🔔 <b>'+new Date().toLocaleTimeString('de-DE')+'</b><br>'+text;}
+  demoAlarmBannerIstSignal=false; // Ereignis-Meldung, keine Signal-Meldung
   var st=document.getElementById('demo-status');if(st)st.innerHTML=text;
 }
 function demoBotTimerSetzen(botId,min){
@@ -2065,6 +2070,7 @@ function demoAlarmUmschalten(){
     demoAlarmPruefen();
   }else{
     document.getElementById('demo-alarm').style.display='none';
+    demoAlarmBannerIstSignal=false;
     document.getElementById('demo-status').textContent='🔕 Auto-Alarm aus.';
   }
 }
@@ -2079,30 +2085,37 @@ async function demoAlarmPruefen(){
     var r=await demoSignaleSammeln();
     document.getElementById('demo-signale').innerHTML=(r.zeilen.join('<br>')||'—')
       +'<br><span style="color:#777">Auto-Prüfung: '+new Date().toLocaleTimeString('de-DE')+'</span>';
-    var neue=[],aktiv={};
+    var neue=[],aktiv={},starke=[];
     r.signale.forEach(function(s){
       if(!s.stark)return;
+      starke.push(s);
       var k=s.id+'-'+s.art;aktiv[k]=1;
       if(!demoAlarmStatus[k])neue.push(s);
     });
     Object.keys(demoAlarmStatus).forEach(function(k){if(!aktiv[k])delete demoAlarmStatus[k];});
     Object.keys(aktiv).forEach(function(k){demoAlarmStatus[k]=1;});
-    if(neue.length){
-      demoBeep();
-      var b=document.getElementById('demo-alarm');
+    var b=document.getElementById('demo-alarm');
+    if(starke.length){
+      // Banner zeigt IMMER die aktuell gültigen starken Signale (nicht nur neue)
+      if(neue.length)demoBeep();
       b.style.display='block';
-      b.innerHTML='🔔 <b>'+new Date().toLocaleTimeString('de-DE')+'</b> – jetzt entscheiden:<br>'
-        +neue.map(function(s){return (s.art==='kauf'?'🟢 ':(s.art==='short'?'🔻 ':'🔴 '))+s.text;}).join('<br>');
-      var sell=neue.filter(function(s){return s.art==='verkauf';})[0];
+      b.innerHTML=demoAlarmXBtn()+'🔔 <b>'+new Date().toLocaleTimeString('de-DE')+'</b> – jetzt entscheiden:<br>'
+        +starke.map(function(s){return (s.art==='kauf'?'🟢 ':(s.art==='short'?'🔻 ':'🔴 '))+s.text;}).join('<br>');
+      demoAlarmBannerIstSignal=true;
+      var sell=starke.filter(function(s){return s.art==='verkauf';})[0];
       if(sell){
         var vs=document.getElementById('demo-verkauf-coin');
         if(vs&&Array.prototype.some.call(vs.options,function(o){return o.value===sell.id;}))vs.value=sell.id;
       }
-      var sh=neue.filter(function(s){return s.art==='short';})[0];
+      var sh=starke.filter(function(s){return s.art==='short';})[0];
       if(sh){
         var shs=document.getElementById('demo-short-coin');
         if(shs&&Array.prototype.some.call(shs.options,function(o){return o.value===sh.id;}))shs.value=sh.id;
       }
+    }else if(demoAlarmBannerIstSignal){
+      // kein starkes Signal mehr -> alte Signal-Meldung entfernen
+      b.style.display='none';
+      demoAlarmBannerIstSignal=false;
     }
   }catch(e){}
   demoAlarmLaeuft=false;
@@ -2290,7 +2303,12 @@ function demoTresorEinstellungen(){
     +' · Auto-Sichern '+(depot.autoSichern?'an':'aus')
     +' · Auto-Stop '+(depot.autoStop?'an':'aus')+'.';
 }
-function demoNachTrade(){demoFormulareAufbauen();demoWerteAktualisieren();demoChartTradeLeiste();}
+function demoNachTrade(){
+  // eine offene "jetzt entscheiden"-Signalmeldung nach einem Trade wegräumen
+  // (die 30-Sek-Prüfung zeigt sie neu, falls sie noch für eine offene Position gilt)
+  if(demoAlarmBannerIstSignal)demoAlarmZu();
+  demoFormulareAufbauen();demoWerteAktualisieren();demoChartTradeLeiste();
+}
 
 function demoKaufen(){
   var r=demoKaufCore(document.getElementById('demo-kauf-coin').value,parseFloat(document.getElementById('demo-kauf-betrag').value));
