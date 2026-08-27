@@ -244,7 +244,8 @@ h1{margin:0;font-size:22px}
 <div class="demo-kopf">
 <div><span class="demo-label">Handelsgeld</span><span class="demo-wert" id="demo-bar">–</span></div>
 <div><span class="demo-label">🔒 Tresor</span><span class="demo-wert" id="demo-tresor">–</span></div>
-<div><span class="demo-label">Positionen</span><span class="demo-wert" id="demo-posval">–</span></div>
+<div><span class="demo-label">Positionen (Long)</span><span class="demo-wert" id="demo-posval">–</span></div>
+<div id="demo-shortcell" style="display:none"><span class="demo-label">🔻 Short (Rückkauf)</span><span class="demo-wert" id="demo-shortliab">–</span></div>
 <div><span class="demo-label">Gesamtwert</span><span class="demo-wert" id="demo-gesamt">–</span></div>
 <div><span class="demo-label">Gewinn/Verlust</span><span class="demo-wert" id="demo-gv">–</span></div>
 </div>
@@ -1862,6 +1863,11 @@ function demoWerteAktualisieren(){
   document.getElementById('demo-bar').textContent=eur(depot.bar);
   document.getElementById('demo-posval').textContent=eur(posWert);
   var trEl=document.getElementById('demo-tresor');if(trEl)trEl.textContent=eur(tresor);
+  var scEl=document.getElementById('demo-shortcell'),slEl=document.getElementById('demo-shortliab');
+  if(scEl&&slEl){
+    if(shortLiab>0.01){scEl.style.display='';slEl.textContent='−'+eur(shortLiab);slEl.className='demo-wert down';}
+    else scEl.style.display='none';
+  }
   document.getElementById('demo-gesamt').textContent=eur(gesamt);
   var gvEl=document.getElementById('demo-gv');
   gvEl.textContent=(gGV>=0?'+':'')+eur(gGV)+' ('+(gGV>=0?'+':'')+(gGV/DEMO_START*100).toFixed(2)+'%)';
