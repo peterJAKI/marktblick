@@ -1632,33 +1632,37 @@ function demoPosGV(id,depot){
   var p=depot.positionen[id];
   if(p&&p.menge>1e-12){
     var brutto=p.menge*preis;
-    return (brutto-demoGebuehrFuer(brutto,depot))-p.kosten;
+    var gv=(brutto-demoGebuehrFuer(brutto,depot))-p.kosten;
+    return {gv:gv,proz:p.kosten>0?gv/p.kosten*100:0};
   }
   var s=depot.shorts&&depot.shorts[id];
-  if(s&&s.menge>1e-12)return s.erloes-s.menge*preis;
+  if(s&&s.menge>1e-12){
+    var gvs=s.erloes-s.menge*preis;
+    return {gv:gvs,proz:s.erloes>0?gvs/s.erloes*100:0};
+  }
   return null;
 }
 function demoUebersichtZeigen(depot){
   var el=document.getElementById('demo-uebersicht');
   if(!el)return;
   var botId=(depot.bot&&depot.bot.an)?depot.bot.coinId:null;
-  function zeile(label,id,gv){
-    var kl=gv>=0?'up':'down';
-    return '<div><b>'+label+':</b> <span class="'+kl+'">'+demoName(id)+' · '+(gv>=0?'+':'')+eur(gv)+'</span></div>';
+  function zeile(label,id,r){
+    var kl=r.gv>=0?'up':'down';
+    return '<div><b>'+label+':</b> <span class="'+kl+'">'+demoName(id)+' · '+(r.gv>=0?'+':'')+eur(r.gv)+' ('+(r.proz>=0?'+':'')+r.proz.toFixed(1)+'%)</span></div>';
   }
   var manuell=[];
   Object.keys(depot.positionen).forEach(function(id){
     if(id===botId||depot.positionen[id].menge<=1e-12)return;
-    var gv=demoPosGV(id,depot); if(gv!=null)manuell.push(zeile('✋ Manuell',id,gv));
+    var r=demoPosGV(id,depot); if(r)manuell.push(zeile('✋ Manuell',id,r));
   });
   Object.keys(depot.shorts||{}).forEach(function(id){
     if(depot.shorts[id].menge<=1e-12)return;
-    var gv=demoPosGV(id,depot); if(gv!=null)manuell.push(zeile('✋ Manuell 🔻 Short',id,gv));
+    var r=demoPosGV(id,depot); if(r)manuell.push(zeile('✋ Manuell 🔻 Short',id,r));
   });
   var out=manuell.length?manuell.join(''):'<div style="color:#888"><b>✋ Manuell:</b> keine Position</div>';
   if(botId&&depot.positionen[botId]){
-    var gvB=demoPosGV(botId,depot);
-    out+=zeile('🤖 Automatik',botId,gvB!=null?gvB:0);
+    var rB=demoPosGV(botId,depot);
+    out+=zeile('🤖 Automatik',botId,rB||{gv:0,proz:0});
   }else{
     out+='<div style="color:#888"><b>🤖 Automatik:</b> keine Position</div>';
   }
