@@ -132,7 +132,8 @@ h1{margin:0;font-size:22px}
 </div>
 <div class="chart-trade" id="chart-trade">
 <div class="chart-trade-zeile">
-<input type="number" id="chart-kauf-betrag" placeholder="€" value="500">
+<input type="number" id="chart-kauf-betrag" placeholder="€">
+<button class="grau" onclick="chartKaufAlles()">Alles</button>
 <button onclick="chartKaufen()">🟢 Kaufen</button>
 <input type="number" id="chart-verkauf-menge" placeholder="Menge" step="any">
 <button class="grau" onclick="chartVerkaufenAlles()">Alles</button>
@@ -272,7 +273,8 @@ h1{margin:0;font-size:22px}
 <div class="rechner-titel">🟢 Kaufen</div>
 <div class="rechner-zeile">
 <select id="demo-kauf-coin" onchange="demoKaufVorschau()"></select>
-<input type="number" id="demo-kauf-betrag" placeholder="€" value="1000" oninput="demoKaufVorschau()">
+<input type="number" id="demo-kauf-betrag" placeholder="€" oninput="demoKaufVorschau()">
+<button class="grau" onclick="demoKaufAlles()">Alles</button>
 <button onclick="demoKaufen()">Kaufen</button>
 </div>
 <div class="rechner-ergebnis" id="demo-kauf-info"></div>
@@ -1791,6 +1793,10 @@ function demoKaufen(){
   if(r.ok)document.getElementById('demo-kauf-betrag').value='';
   demoNachTrade();
 }
+function demoKaufAlles(){
+  document.getElementById('demo-kauf-betrag').value=Math.floor(demoLaden().bar*100)/100;
+  demoKaufVorschau();
+}
 function demoMengeAlles(){
   var depot=demoLaden();
   var id=document.getElementById('demo-verkauf-coin').value;
@@ -1814,6 +1820,9 @@ function chartKaufen(){
   document.getElementById('chart-trade-info').textContent=r.text;
   if(r.ok)document.getElementById('chart-kauf-betrag').value='';
   demoNachTrade();
+}
+function chartKaufAlles(){
+  document.getElementById('chart-kauf-betrag').value=Math.floor(demoLaden().bar*100)/100;
 }
 function chartVerkaufenAlles(){
   var id=chartCoinId();
