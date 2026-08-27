@@ -248,6 +248,29 @@ h1{margin:0;font-size:22px}
 <div><span class="demo-label">Gewinn/Verlust</span><span class="demo-wert" id="demo-gv">–</span></div>
 </div>
 <div class="rechner">
+<div class="rechner-titel">🤖 Automatik — kaufen &amp; von selbst verkaufen</div>
+<div class="rechner-zeile">
+<select id="demo-bot-coin"></select>
+<input type="number" id="demo-bot-einsatz" placeholder="Einsatz €" style="width:110px">
+</div>
+<div class="rechner-zeile">
+<span>Verkauf bei</span>
+<input type="number" id="demo-bot-gewinn" placeholder="€" style="width:80px"><span>€ Gewinn</span>
+<span>oder</span>
+<input type="number" id="demo-bot-verlust" placeholder="€" style="width:80px"><span>€ Verlust</span>
+</div>
+<div class="rechner-zeile">
+<span>spätestens nach</span>
+<input type="number" id="demo-bot-minuten" placeholder="Min." min="0" step="1" style="width:70px"><span>Minuten (0 = aus)</span>
+</div>
+<div class="rechner-zeile">
+<button onclick="demoBotStart()">▶️ Automatik starten</button>
+<button class="grau" onclick="demoBotStop()">⏹️ Stoppen</button>
+</div>
+<div class="rechner-ergebnis" id="demo-bot-status" style="text-align:left;font-weight:normal;font-size:13px;color:#ccc"></div>
+<div class="signal-hinweis">Kauft sofort für den Einsatz und verkauft von selbst, sobald der Gewinn- oder der Verlust-Betrag erreicht ist – Kauf- und Verkaufsgebühr sind schon eingerechnet. Danach ist die Automatik <b>aus</b> und läuft unter keinen Umständen weiter; du musst sie selbst wieder starten. Manuelles Kaufen/Verkaufen bleibt jederzeit möglich – greifst du in die überwachte Position ein, stoppt die Automatik dafür.</div>
+</div>
+<div class="rechner">
 <div class="rechner-titel">🔒 Tresor &amp; Auto-Verkauf</div>
 <div class="rechner-zeile">
 <span>Handelsgeld-Ziel</span><input type="number" id="demo-handelsziel" step="100" min="0" style="width:90px"><span>€</span>
@@ -1352,6 +1375,7 @@ function demoLaden(){
   if(typeof x.autoSichern!=='boolean')x.autoSichern=true;
   if(typeof x.autoStop!=='boolean')x.autoStop=false;
   if(!x.shorts||typeof x.shorts!=='object')x.shorts={};
+  if(!x.bot||typeof x.bot!=='object')x.bot={an:false};
   return x;
 }
 function demoSpeichern(x){localStorage.setItem('mb_demo',JSON.stringify(x));}
@@ -1422,12 +1446,13 @@ function demoFormulareAufbauen(){
   var gehalten=Object.keys(depot.positionen).filter(function(id){return depot.positionen[id].menge>1e-12;});
   verkSel.innerHTML=gehalten.length?gehalten.map(function(id){return '<option value="'+id+'">'+demoName(id)+'</option>';}).join(''):'<option value="">— keine Positionen —</option>';
   if(vV&&gehalten.indexOf(vV)>=0)verkSel.value=vV;
-  var shortSel=document.getElementById('demo-short-coin');
-  if(shortSel){
-    var vS=shortSel.value;
-    shortSel.innerHTML=aktuelleCoins.map(function(c){return '<option value="'+c.id+'">'+c.name+' ('+c.symbol.toUpperCase()+')</option>';}).join('');
-    if(vS&&aktuelleCoins.some(function(c){return c.id===vS;}))shortSel.value=vS;
-  }
+  ['demo-short-coin','demo-bot-coin'].forEach(function(selId){
+    var sel=document.getElementById(selId);
+    if(!sel)return;
+    var v=sel.value;
+    sel.innerHTML=aktuelleCoins.map(function(c){return '<option value="'+c.id+'">'+c.name+' ('+c.symbol.toUpperCase()+')</option>';}).join('');
+    if(v&&aktuelleCoins.some(function(c){return c.id===v;}))sel.value=v;
+  });
   demoGebuehrInfo();
   demoKaufVorschau();
   demoShortVorschau();
@@ -1482,9 +1507,98 @@ function demoAutoStopPruefen(){
   return true;
 }
 
+// --- Automatik / Bot ---
+var demoBotLaeuft=false;
+function demoBotMeldung(text){
+  var s=document.getElementById('demo-bot-status');
+  if(s)s.textContent=text;
+  var st=document.getElementById('demo-status');
+  if(st&&text.indexOf('▶️')!==0)st.textContent=text;
+  var b=document.getElementById('demo-alarm');
+  if(b&&text.indexOf('⏹️')===0){b.style.display='block';b.innerHTML='🔔 <b>'+new Date().toLocaleTimeString('de-DE')+'</b><br>'+text;}
+}
+function demoBotStart(){
+  var depot=demoLaden();
+  var id=document.getElementById('demo-bot-coin').value;
+  var einsatz=parseFloat(document.getElementById('demo-bot-einsatz').value);
+  var gw=parseFloat(document.getElementById('demo-bot-gewinn').value);
+  var vl=parseFloat(document.getElementById('demo-bot-verlust').value);
+  var min=parseFloat(document.getElementById('demo-bot-minuten').value)||0;
+  var s=document.getElementById('demo-bot-status');
+  if(depot.bot&&depot.bot.an){s.textContent='⚠️ Automatik läuft schon. Erst „Stoppen" drücken.';return;}
+  if(!id){s.textContent='⚠️ Coin wählen.';return;}
+  if(!einsatz||einsatz<=0){s.textContent='⚠️ Einsatz in € eingeben.';return;}
+  if(!gw||gw<=0||!vl||vl<=0){s.textContent='⚠️ Gewinn- und Verlust-Betrag in € eingeben.';return;}
+  if((depot.positionen[id]&&depot.positionen[id].menge>1e-12)||(depot.shorts[id]&&depot.shorts[id].menge>1e-12)){
+    s.textContent='⚠️ Für '+demoName(id)+' hast du schon eine Position. Die Automatik startet nur auf einem Coin ohne offene Position.';return;
+  }
+  if(einsatz>depot.bar){s.textContent='⚠️ Nicht genug Handelsgeld ('+eur(depot.bar)+').';return;}
+  var r=demoKaufCore(id,einsatz);
+  if(!r.ok){s.textContent=r.text;return;}
+  var d2=demoLaden();
+  d2.bot={an:true,coinId:id,einsatz:einsatz,gewinnEuro:gw,verlustEuro:vl,minuten:min,startZeit:Date.now(),menge:d2.positionen[id].menge};
+  demoSpeichern(d2);
+  demoTradeFlag=true;
+  demoBotMeldung('▶️ Automatik läuft: '+demoName(id)+' für '+eur(einsatz)+' gekauft. Verkauf bei +'+eur(gw)+' Gewinn oder −'+eur(vl)+' Verlust'+(min>0?' oder nach '+min+' Min.':'')+'.');
+  demoFormulareAufbauen();
+  demoWerteAktualisieren();
+}
+function demoBotStop(){
+  var depot=demoLaden();
+  if(!depot.bot||!depot.bot.an){document.getElementById('demo-bot-status').textContent='Automatik ist aus.';return;}
+  depot.bot.an=false;depot.bot.coinId=null;
+  demoSpeichern(depot);
+  demoBotMeldung('⏹️ Automatik von Hand gestoppt. Die Position bleibt offen – du verwaltest sie jetzt selbst.');
+  demoWerteAktualisieren();
+}
+function demoBotPruefen(){
+  if(demoBotLaeuft)return;
+  var depot=demoLaden();
+  var bot=depot.bot;
+  if(!bot||!bot.an)return;
+  var id=bot.coinId;
+  var pos=depot.positionen[id];
+  var preis=demoPreis(id);
+  // Nutzer hat die Position von Hand verändert / geschlossen / oder einen Short eröffnet -> Automatik aus (nicht verkaufen)
+  if(!pos||pos.menge<=1e-12||Math.abs(pos.menge-bot.menge)>bot.menge*1e-6||(depot.shorts[id]&&depot.shorts[id].menge>1e-12)){
+    depot.bot.an=false;depot.bot.coinId=null;demoSpeichern(depot);
+    demoBotMeldung('⏹️ Automatik gestoppt – die Position wurde von Hand geändert.');
+    return;
+  }
+  if(preis==null)return;
+  var brutto=pos.menge*preis;
+  var netto=brutto-demoGebuehrFuer(brutto,depot);
+  var pl=netto-pos.kosten; // €-Gewinn/Verlust falls jetzt verkauft, Gebühren schon drin
+  var zeitAus=bot.minuten>0&&(Date.now()-bot.startZeit)>=bot.minuten*60000;
+  var grund=null;
+  if(pl>=bot.gewinnEuro)grund='🟢 Gewinnziel erreicht ('+(pl>=0?'+':'')+eur(pl)+')';
+  else if(pl<=-bot.verlustEuro)grund='🔴 Verlustgrenze erreicht ('+eur(pl)+')';
+  else if(zeitAus)grund='⏱️ Zeit abgelaufen ('+bot.minuten+' Min., Stand '+(pl>=0?'+':'')+eur(pl)+')';
+  if(!grund){
+    var s=document.getElementById('demo-bot-status');
+    if(s)s.textContent='▶️ Automatik läuft: '+demoName(id)+' · jetzt '+(pl>=0?'+':'')+eur(pl)+' (Verkauf bei +'+eur(bot.gewinnEuro)+' / −'+eur(bot.verlustEuro)+(bot.minuten>0?' / '+bot.minuten+' Min.':'')+')';
+    return;
+  }
+  demoBotLaeuft=true;
+  var r=demoVerkaufCore(id,pos.menge);
+  var d2=demoLaden();
+  d2.bot.an=false;d2.bot.coinId=null; // harter Stopp – nichts setzt an je wieder auf true ausser demoBotStart()
+  demoSpeichern(d2);
+  demoBotLaeuft=false;
+  demoTradeFlag=true;
+  try{demoBeep();}catch(e){}
+  demoBotMeldung('⏹️ Automatik beendet – '+grund+'. '+r.text);
+  demoFormulareAufbauen();
+  demoWerteAktualisieren();
+}
+setInterval(demoBotPruefen,15000);
+
 function demoWerteAktualisieren(){
+  demoBotPruefen();
   var view=document.getElementById('ansicht-demo');
   if(!view||view.style.display==='none')return;
+  var kaufSel=document.getElementById('demo-kauf-coin');
+  if(kaufSel&&kaufSel.options.length===0&&aktuelleCoins.length)demoFormulareAufbauen();
   var kaufSel=document.getElementById('demo-kauf-coin');
   if(kaufSel&&kaufSel.options.length===0&&aktuelleCoins.length)demoFormulareAufbauen();
   if(demoAutoStopPruefen()){demoFormulareAufbauen();}
@@ -2049,7 +2163,7 @@ function demoChartTradeLeiste(){
 function demoZuruecksetzen(){
   if(!confirm('Depot wirklich zurücksetzen? Alle Positionen und der Verlauf werden gelöscht, du startest wieder mit 10.000 € Spielgeld.'))return;
   var alt=demoLaden();
-  demoSpeichern({bar:DEMO_START,positionen:{},shorts:{},verlauf:[],tresor:0,gebuehrProzent:alt.gebuehrProzent,gebuehrMin:alt.gebuehrMin,zielGewinn:alt.zielGewinn,maxVerlust:alt.maxVerlust,signalTf:alt.signalTf,alarmAn:alt.alarmAn,handelsziel:alt.handelsziel,autoSichern:alt.autoSichern,autoStop:alt.autoStop});
+  demoSpeichern({bar:DEMO_START,positionen:{},shorts:{},bot:{an:false},verlauf:[],tresor:0,gebuehrProzent:alt.gebuehrProzent,gebuehrMin:alt.gebuehrMin,zielGewinn:alt.zielGewinn,maxVerlust:alt.maxVerlust,signalTf:alt.signalTf,alarmAn:alt.alarmAn,handelsziel:alt.handelsziel,autoSichern:alt.autoSichern,autoStop:alt.autoStop});
   demoTradeFlag=true;
   demoFormulareAufbauen();
   demoWerteAktualisieren();
