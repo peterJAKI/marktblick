@@ -270,6 +270,9 @@ h1{margin:0;font-size:22px}
 <span>oder</span>
 <input type="number" id="demo-bot-verlust" placeholder="€" style="width:80px"><span>€ Verlust</span>
 </div>
+<div class="rechner-zeile" style="font-size:13px">
+<label><input type="checkbox" id="demo-bot-trailing"> Nachziehender Gewinn-Schutz (Trailing) – ab +Gewinn zieht der Schutz mit, Verkauf erst bei Rückfall um den Verlust-Betrag vom Höchststand</label>
+</div>
 <div class="rechner-zeile">
 <span>Spätestens verkaufen nach</span>
 <input type="number" id="demo-bot-maxmin" placeholder="—" min="1" step="1" style="width:70px"><span>Minuten (leer = keine Zeitgrenze)</span>
@@ -1611,6 +1614,7 @@ function demoBotStart(){
   if(!min||min<1)min=5; if(min>60)min=60;
   var maxMin=parseFloat(document.getElementById('demo-bot-maxmin').value);
   if(isNaN(maxMin)||maxMin<=0)maxMin=0;
+  var trailing=document.getElementById('demo-bot-trailing').checked;
   var s=document.getElementById('demo-bot-status');
   if(!id){s.textContent='⚠️ Coin wählen.';return;}
   if(!einsatz||einsatz<=0){s.textContent='⚠️ Einsatz in € eingeben.';return;}
@@ -1627,13 +1631,16 @@ function demoBotStart(){
   var d2=demoLaden();
   var menge=(richtung==='short')?d2.shorts[id].menge:d2.positionen[id].menge;
   var botId='b'+Date.now()+Math.floor(Math.random()*1000);
-  var neuerBot={id:botId,richtung:richtung,coinId:id,einsatz:einsatz,gewinnEuro:gw,verlustEuro:vl,pruefMin:min,menge:menge,maxMin:maxMin,startZeit:Date.now()};
+  var neuerBot={id:botId,richtung:richtung,coinId:id,einsatz:einsatz,gewinnEuro:gw,verlustEuro:vl,pruefMin:min,menge:menge,maxMin:maxMin,startZeit:Date.now(),trailing:trailing,trailAktiv:false,trailHoch:0};
   d2.bots.push(neuerBot);
   demoSpeichern(d2);
   demoTradeFlag=true;
   demoBotTimerSetzen(botId,min);
   demoBotMaxTimerSetzen(neuerBot);
-  s.textContent='▶️ Automatik gestartet: '+(richtung==='short'?'🔻 Short ':'▲ Long ')+demoName(id)+' für '+eur(einsatz)+'. Verkauf bei +'+eur(gw)+' oder −'+eur(vl)+(maxMin>0?' – spätestens nach '+maxMin+' Min.':'')+'. Prüfung alle '+min+' Min.';
+  var zielTxt=trailing
+    ? 'Trailing: ab +'+eur(gw)+' Gewinn zieht der Schutz nach, Verkauf bei '+eur(vl)+' Rückfall vom Höchststand (vorher Stopp bei −'+eur(vl)+')'
+    : 'Verkauf bei +'+eur(gw)+' oder −'+eur(vl);
+  s.textContent='▶️ Automatik gestartet: '+(richtung==='short'?'🔻 Short ':'▲ Long ')+demoName(id)+' für '+eur(einsatz)+'. '+zielTxt+(maxMin>0?' – spätestens nach '+maxMin+' Min.':'')+'. Prüfung alle '+min+' Min.';
   document.getElementById('demo-bot-einsatz').value='';
   document.getElementById('demo-bot-gewinn').value='';
   document.getElementById('demo-bot-verlust').value='';
@@ -1678,9 +1685,23 @@ function demoBotEinzelPruefen(botId){
   if(pl==null)return;
   var zeitAus=bot.maxMin>0&&bot.startZeit&&(Date.now()-bot.startZeit)>=bot.maxMin*60000;
   var grund=null;
-  if(pl>=bot.gewinnEuro)grund='🟢 Gewinnziel erreicht ('+(pl>=0?'+':'')+eur(pl)+')';
-  else if(pl<=-bot.verlustEuro)grund='🔴 Verlustgrenze erreicht ('+eur(pl)+')';
-  else if(zeitAus)grund='⏱️ Zeitgrenze ('+bot.maxMin+' Min.) erreicht – Stand '+(pl>=0?'+':'')+eur(pl);
+  if(bot.trailing){
+    // Höchststand nachziehen; Trailing aktiviert sich beim ersten Erreichen des Gewinn-Betrags
+    var idx=-1;for(var i=0;i<depot.bots.length;i++)if(depot.bots[i].id===bot.id){idx=i;break;}
+    var geaendert=false;
+    if(!bot.trailAktiv&&pl>=bot.gewinnEuro){bot.trailAktiv=true;bot.trailHoch=pl;geaendert=true;}
+    if(bot.trailAktiv&&pl>(bot.trailHoch||0)){bot.trailHoch=pl;geaendert=true;}
+    if(geaendert&&idx>=0){depot.bots[idx].trailAktiv=bot.trailAktiv;depot.bots[idx].trailHoch=bot.trailHoch;demoSpeichern(depot);}
+    if(bot.trailAktiv){
+      if(pl<=bot.trailHoch-bot.verlustEuro)grund='🟢 Trailing-Stopp: von +'+eur(bot.trailHoch)+' auf '+(pl>=0?'+':'')+eur(pl)+' zurückgefallen';
+    }else if(pl<=-bot.verlustEuro){
+      grund='🔴 Verlustgrenze erreicht ('+eur(pl)+')';
+    }
+  }else{
+    if(pl>=bot.gewinnEuro)grund='🟢 Gewinnziel erreicht ('+(pl>=0?'+':'')+eur(pl)+')';
+    else if(pl<=-bot.verlustEuro)grund='🔴 Verlustgrenze erreicht ('+eur(pl)+')';
+  }
+  if(!grund&&zeitAus)grund='⏱️ Zeitgrenze ('+bot.maxMin+' Min.) erreicht – Stand '+(pl>=0?'+':'')+eur(pl);
   if(!grund)return;
   demoBotLaeuft=true;
   var menge=demoBotMenge(depot,bot);
@@ -1719,8 +1740,13 @@ function demoBotListeZeigen(){
   var bots=demoLaden().bots||[];
   if(!bots.length){el.innerHTML='<span style="color:#ddd">Keine Automatik läuft. Unten eine starten.</span>';return;}
   el.innerHTML='<b>Läuft gerade:</b>'+bots.map(function(b){
+    var ziel=b.trailing
+      ? (b.trailAktiv
+          ? '📈 Trailing aktiv · Höchst. +'+eur(b.trailHoch||0)+' · Verkauf bei '+eur((b.trailHoch||0)-b.verlustEuro)
+          : '📈 Trailing ab +'+eur(b.gewinnEuro)+' · vorher Stopp −'+eur(b.verlustEuro))
+      : 'Ziel +'+eur(b.gewinnEuro)+' / −'+eur(b.verlustEuro);
     return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:3px 0">'
-      +'<span>'+(b.richtung==='short'?'🔻 Short':'▲ Long')+' <b>'+demoName(b.coinId)+'</b> · '+eur(b.einsatz)+' · Ziel +'+eur(b.gewinnEuro)+' / −'+eur(b.verlustEuro)+(b.maxMin>0?' · ⏱️ max '+b.maxMin+' Min.':'')+' · Prüfung alle '+b.pruefMin+' Min.</span>'
+      +'<span>'+(b.richtung==='short'?'🔻 Short':'▲ Long')+' <b>'+demoName(b.coinId)+'</b> · '+eur(b.einsatz)+' · '+ziel+(b.maxMin>0?' · ⏱️ max '+b.maxMin+' Min.':'')+' · Prüfung alle '+b.pruefMin+' Min.</span>'
       +'<button class="grau" style="padding:4px 10px" onclick="demoBotStop(\''+b.id+'\')">⏹️ Stopp</button></div>';
   }).join('');
 }
@@ -1800,7 +1826,10 @@ function demoUebersichtZeigen(depot){
       var pl=demoBotPL(depot,b);
       if(pl==null){ausstehend=true;out+='<div style="color:#ddd"><b>'+label+':</b> Kurs lädt…</div>';return;}
       summeGV+=pl; summeBasis+=b.einsatz; anzahl++;
-      out+='<div><b>'+label+':</b> '+fmt(pl,b.einsatz>0?pl/b.einsatz*100:0)+' <span style="color:#ddd">· Ziel +'+eur(b.gewinnEuro)+' / −'+eur(b.verlustEuro)+(b.maxMin>0?' · ⏱️ max '+b.maxMin+' Min.':'')+'</span></div>';
+      var zielKurz=b.trailing
+        ? (b.trailAktiv?'📈 Trailing, Verk. bei '+eur((b.trailHoch||0)-b.verlustEuro):'📈 Trailing ab +'+eur(b.gewinnEuro))
+        : 'Ziel +'+eur(b.gewinnEuro)+' / −'+eur(b.verlustEuro);
+      out+='<div><b>'+label+':</b> '+fmt(pl,b.einsatz>0?pl/b.einsatz*100:0)+' <span style="color:#ddd">· '+zielKurz+(b.maxMin>0?' · ⏱️ max '+b.maxMin+' Min.':'')+'</span></div>';
     });
   }else{
     out+='<div style="color:#ddd"><b>🤖 Automatik:</b> keine läuft</div>';
