@@ -271,6 +271,10 @@ h1{margin:0;font-size:22px}
 <input type="number" id="demo-bot-verlust" placeholder="€" style="width:80px"><span>€ Verlust</span>
 </div>
 <div class="rechner-zeile">
+<span>Spätestens verkaufen nach</span>
+<input type="number" id="demo-bot-maxmin" placeholder="—" min="1" step="1" style="width:70px"><span>Minuten (leer = keine Zeitgrenze)</span>
+</div>
+<div class="rechner-zeile">
 <span>Prüf-Rhythmus: alle</span>
 <input type="number" id="demo-bot-minuten" placeholder="5" min="1" max="60" step="1" style="width:70px"><span>Minuten (Standard 5)</span>
 </div>
@@ -278,7 +282,7 @@ h1{margin:0;font-size:22px}
 <button onclick="demoBotStart()">▶️ Automatik starten</button>
 </div>
 <div class="rechner-ergebnis" id="demo-bot-status" style="text-align:left;font-weight:normal;font-size:13px;color:#ccc"></div>
-<div class="signal-hinweis">Kauft (Long) bzw. shortet sofort für den Einsatz und schließt von selbst – aber <b>nur</b>, wenn der Gewinn- oder der Verlust-Betrag erreicht ist (alle Gebühren schon eingerechnet). Zeit spielt keine Rolle. Der Prüf-Rhythmus sagt nur, wie oft im Hintergrund geprüft wird. Nach dem Schließen ist diese Automatik <b>aus</b> und läuft unter keinen Umständen weiter – du musst sie selbst neu starten. Automatik-Gewinn wandert immer in den Tresor, der Einsatz zurück ins Handelsgeld. Mehrere Automatiken parallel möglich – je Coin eine. Greifst du in eine überwachte Position von Hand ein, stoppt nur diese Automatik.</div>
+<div class="signal-hinweis">Kauft (Long) bzw. shortet sofort für den Einsatz und schließt von selbst, wenn der Gewinn- oder der Verlust-Betrag erreicht ist (alle Gebühren schon eingerechnet). <b>Spätestens verkaufen nach</b> ist optional: trägst du eine Minutenzahl ein, verkauft die Automatik nach dieser Zeit auf jeden Fall – egal ob Gewinn oder Verlust (Sicherheitsnetz, falls du länger nicht am PC bist). Leer = läuft ohne Zeitgrenze weiter. Der <b>Prüf-Rhythmus</b> ist etwas anderes – er sagt nur, wie oft im Hintergrund geprüft wird. Nach dem Schließen ist diese Automatik <b>aus</b> und läuft nicht weiter – du musst sie selbst neu starten. Automatik-Gewinn wandert immer in den Tresor, der Einsatz zurück ins Handelsgeld. Mehrere Automatiken parallel möglich – je Coin eine. Greifst du in eine überwachte Position von Hand ein, stoppt nur diese Automatik.</div>
 </div>
 <div class="rechner">
 <div class="rechner-titel">🔒 Tresor &amp; Auto-Verkauf</div>
@@ -1551,7 +1555,8 @@ function demoAutoStopPruefen(){
 
 // --- Automatik / Bots (mehrere parallel, je Coin eine) ---
 var demoBotLaeuft=false;
-var demoBotTimers={};
+var demoBotTimers={};   // Prüf-Rhythmus (Intervall)
+var demoBotMaxTimers={}; // optionale Zeitgrenze (einmaliger Timeout)
 var demoAlarmBannerIstSignal=false;
 function demoAlarmZu(){var b=document.getElementById('demo-alarm');if(b)b.style.display='none';demoAlarmBannerIstSignal=false;}
 function demoAlarmXBtn(){return '<span onclick="demoAlarmZu()" style="float:right;cursor:pointer;color:#aaa">✕</span>';}
@@ -1567,9 +1572,16 @@ function demoBotTimerSetzen(botId,min){
   if(!min||min<1)return;
   demoBotTimers[botId]=setInterval(function(){demoBotEinzelPruefen(botId);},Math.round(min*60000));
 }
+function demoBotMaxTimerSetzen(bot){
+  if(demoBotMaxTimers[bot.id]){clearTimeout(demoBotMaxTimers[bot.id]);delete demoBotMaxTimers[bot.id];}
+  if(!bot.maxMin||!bot.startZeit)return;
+  var rest=bot.startZeit+bot.maxMin*60000-Date.now();
+  demoBotMaxTimers[bot.id]=setTimeout(function(){demoBotEinzelPruefen(bot.id);},Math.max(rest,1000));
+}
 function demoBotEntfernen(depot,botId){
   depot.bots=(depot.bots||[]).filter(function(b){return b.id!==botId;});
   if(demoBotTimers[botId]){clearInterval(demoBotTimers[botId]);delete demoBotTimers[botId];}
+  if(demoBotMaxTimers[botId]){clearTimeout(demoBotMaxTimers[botId]);delete demoBotMaxTimers[botId];}
 }
 function demoBotMenge(depot,bot){
   if(bot.richtung==='short'){var s=depot.shorts[bot.coinId];return s?s.menge:0;}
@@ -1597,6 +1609,8 @@ function demoBotStart(){
   var vl=parseFloat(document.getElementById('demo-bot-verlust').value);
   var min=parseFloat(document.getElementById('demo-bot-minuten').value);
   if(!min||min<1)min=5; if(min>60)min=60;
+  var maxMin=parseFloat(document.getElementById('demo-bot-maxmin').value);
+  if(isNaN(maxMin)||maxMin<=0)maxMin=0;
   var s=document.getElementById('demo-bot-status');
   if(!id){s.textContent='⚠️ Coin wählen.';return;}
   if(!einsatz||einsatz<=0){s.textContent='⚠️ Einsatz in € eingeben.';return;}
@@ -1613,14 +1627,17 @@ function demoBotStart(){
   var d2=demoLaden();
   var menge=(richtung==='short')?d2.shorts[id].menge:d2.positionen[id].menge;
   var botId='b'+Date.now()+Math.floor(Math.random()*1000);
-  d2.bots.push({id:botId,richtung:richtung,coinId:id,einsatz:einsatz,gewinnEuro:gw,verlustEuro:vl,pruefMin:min,menge:menge});
+  var neuerBot={id:botId,richtung:richtung,coinId:id,einsatz:einsatz,gewinnEuro:gw,verlustEuro:vl,pruefMin:min,menge:menge,maxMin:maxMin,startZeit:Date.now()};
+  d2.bots.push(neuerBot);
   demoSpeichern(d2);
   demoTradeFlag=true;
   demoBotTimerSetzen(botId,min);
-  s.textContent='▶️ Automatik gestartet: '+(richtung==='short'?'🔻 Short ':'▲ Long ')+demoName(id)+' für '+eur(einsatz)+'. Verkauf nur bei +'+eur(gw)+' oder −'+eur(vl)+'. Prüfung alle '+min+' Min.';
+  demoBotMaxTimerSetzen(neuerBot);
+  s.textContent='▶️ Automatik gestartet: '+(richtung==='short'?'🔻 Short ':'▲ Long ')+demoName(id)+' für '+eur(einsatz)+'. Verkauf bei +'+eur(gw)+' oder −'+eur(vl)+(maxMin>0?' – spätestens nach '+maxMin+' Min.':'')+'. Prüfung alle '+min+' Min.';
   document.getElementById('demo-bot-einsatz').value='';
   document.getElementById('demo-bot-gewinn').value='';
   document.getElementById('demo-bot-verlust').value='';
+  document.getElementById('demo-bot-maxmin').value='';
   demoFormulareAufbauen();
   demoWerteAktualisieren();
 }
@@ -1659,9 +1676,11 @@ function demoBotEinzelPruefen(botId){
   if(demoBotEingriffe(depot)){demoFormulareAufbauen();demoWerteAktualisieren();return;}
   var pl=demoBotPL(depot,bot);
   if(pl==null)return;
+  var zeitAus=bot.maxMin>0&&bot.startZeit&&(Date.now()-bot.startZeit)>=bot.maxMin*60000;
   var grund=null;
   if(pl>=bot.gewinnEuro)grund='🟢 Gewinnziel erreicht ('+(pl>=0?'+':'')+eur(pl)+')';
   else if(pl<=-bot.verlustEuro)grund='🔴 Verlustgrenze erreicht ('+eur(pl)+')';
+  else if(zeitAus)grund='⏱️ Zeitgrenze ('+bot.maxMin+' Min.) erreicht – Stand '+(pl>=0?'+':'')+eur(pl);
   if(!grund)return;
   demoBotLaeuft=true;
   var menge=demoBotMenge(depot,bot);
@@ -1680,7 +1699,11 @@ function demoBotEinzelPruefen(botId){
 function demoBotTimersAbgleichen(depot){
   var ids={};(depot.bots||[]).forEach(function(b){ids[b.id]=b;});
   Object.keys(demoBotTimers).forEach(function(k){if(!ids[k]){clearInterval(demoBotTimers[k]);delete demoBotTimers[k];}});
-  (depot.bots||[]).forEach(function(b){if(!demoBotTimers[b.id])demoBotTimerSetzen(b.id,b.pruefMin||5);});
+  Object.keys(demoBotMaxTimers).forEach(function(k){if(!ids[k]){clearTimeout(demoBotMaxTimers[k]);delete demoBotMaxTimers[k];}});
+  (depot.bots||[]).forEach(function(b){
+    if(!demoBotTimers[b.id])demoBotTimerSetzen(b.id,b.pruefMin||5);
+    if(b.maxMin>0&&b.startZeit&&!demoBotMaxTimers[b.id])demoBotMaxTimerSetzen(b);
+  });
 }
 // häufig aufgerufen: nur Eingriffs-Erkennung, verkauft nie
 function demoBotStatusZeigen(){
@@ -1697,12 +1720,12 @@ function demoBotListeZeigen(){
   if(!bots.length){el.innerHTML='<span style="color:#ddd">Keine Automatik läuft. Unten eine starten.</span>';return;}
   el.innerHTML='<b>Läuft gerade:</b>'+bots.map(function(b){
     return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:3px 0">'
-      +'<span>'+(b.richtung==='short'?'🔻 Short':'▲ Long')+' <b>'+demoName(b.coinId)+'</b> · '+eur(b.einsatz)+' · Ziel +'+eur(b.gewinnEuro)+' / −'+eur(b.verlustEuro)+' · alle '+b.pruefMin+' Min.</span>'
+      +'<span>'+(b.richtung==='short'?'🔻 Short':'▲ Long')+' <b>'+demoName(b.coinId)+'</b> · '+eur(b.einsatz)+' · Ziel +'+eur(b.gewinnEuro)+' / −'+eur(b.verlustEuro)+(b.maxMin>0?' · ⏱️ max '+b.maxMin+' Min.':'')+' · Prüfung alle '+b.pruefMin+' Min.</span>'
       +'<button class="grau" style="padding:4px 10px" onclick="demoBotStop(\''+b.id+'\')">⏹️ Stopp</button></div>';
   }).join('');
 }
 // beim Laden: für jede laufende Automatik den Prüf-Timer setzen
-(function(){ (demoLaden().bots||[]).forEach(function(b){demoBotTimerSetzen(b.id,b.pruefMin||5);}); })();
+(function(){ (demoLaden().bots||[]).forEach(function(b){demoBotTimerSetzen(b.id,b.pruefMin||5);demoBotMaxTimerSetzen(b);}); })();
 
 function demoPosGV(id,depot){
   var preis=demoPreis(id);
@@ -1777,7 +1800,7 @@ function demoUebersichtZeigen(depot){
       var pl=demoBotPL(depot,b);
       if(pl==null){ausstehend=true;out+='<div style="color:#ddd"><b>'+label+':</b> Kurs lädt…</div>';return;}
       summeGV+=pl; summeBasis+=b.einsatz; anzahl++;
-      out+='<div><b>'+label+':</b> '+fmt(pl,b.einsatz>0?pl/b.einsatz*100:0)+' <span style="color:#ddd">· Ziel +'+eur(b.gewinnEuro)+' / −'+eur(b.verlustEuro)+'</span></div>';
+      out+='<div><b>'+label+':</b> '+fmt(pl,b.einsatz>0?pl/b.einsatz*100:0)+' <span style="color:#ddd">· Ziel +'+eur(b.gewinnEuro)+' / −'+eur(b.verlustEuro)+(b.maxMin>0?' · ⏱️ max '+b.maxMin+' Min.':'')+'</span></div>';
     });
   }else{
     out+='<div style="color:#ddd"><b>🤖 Automatik:</b> keine läuft</div>';
@@ -2459,6 +2482,7 @@ function demoZuruecksetzen(){
   if(!confirm('Depot wirklich zurücksetzen? Alle Positionen, laufenden Automatiken und der Verlauf werden gelöscht, du startest wieder mit 10.000 € Spielgeld.'))return;
   var alt=demoLaden();
   Object.keys(demoBotTimers).forEach(function(k){clearInterval(demoBotTimers[k]);delete demoBotTimers[k];});
+  Object.keys(demoBotMaxTimers).forEach(function(k){clearTimeout(demoBotMaxTimers[k]);delete demoBotMaxTimers[k];});
   demoSpeichern({bar:DEMO_START,positionen:{},shorts:{},bots:[],verlauf:[],tresor:0,tresorVerlauf:[],gebuehrProzent:alt.gebuehrProzent,gebuehrMin:alt.gebuehrMin,zielGewinn:alt.zielGewinn,maxVerlust:alt.maxVerlust,signalTf:alt.signalTf,alarmAn:alt.alarmAn,handelsziel:alt.handelsziel,autoSichern:alt.autoSichern,autoStop:alt.autoStop});
   demoTradeFlag=true;
   demoFormulareAufbauen();
