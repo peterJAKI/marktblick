@@ -248,6 +248,10 @@ h1{margin:0;font-size:22px}
 <div><span class="demo-label">Gewinn/Verlust</span><span class="demo-wert" id="demo-gv">–</span></div>
 </div>
 <div class="rechner">
+<div class="rechner-titel">👁️ Offene Positionen auf einen Blick</div>
+<div id="demo-uebersicht" style="font-size:14px;line-height:1.6"></div>
+</div>
+<div class="rechner">
 <div class="rechner-titel">🤖 Automatik — kaufen &amp; von selbst verkaufen</div>
 <div class="rechner-zeile">
 <select id="demo-bot-coin"></select>
@@ -1622,6 +1626,45 @@ function demoBotTimerSetzen(min){
 // beim Laden: falls eine Automatik noch aktiv ist, Prüf-Timer wieder setzen
 (function(){var b=demoLaden().bot;if(b&&b.an)demoBotTimerSetzen(b.pruefMin||5);})();
 
+function demoPosGV(id,depot){
+  var preis=demoPreis(id);
+  if(preis==null)return null;
+  var p=depot.positionen[id];
+  if(p&&p.menge>1e-12){
+    var brutto=p.menge*preis;
+    return (brutto-demoGebuehrFuer(brutto,depot))-p.kosten;
+  }
+  var s=depot.shorts&&depot.shorts[id];
+  if(s&&s.menge>1e-12)return s.erloes-s.menge*preis;
+  return null;
+}
+function demoUebersichtZeigen(depot){
+  var el=document.getElementById('demo-uebersicht');
+  if(!el)return;
+  var botId=(depot.bot&&depot.bot.an)?depot.bot.coinId:null;
+  function zeile(label,id,gv){
+    var kl=gv>=0?'up':'down';
+    return '<div><b>'+label+':</b> <span class="'+kl+'">'+demoName(id)+' · '+(gv>=0?'+':'')+eur(gv)+'</span></div>';
+  }
+  var manuell=[];
+  Object.keys(depot.positionen).forEach(function(id){
+    if(id===botId||depot.positionen[id].menge<=1e-12)return;
+    var gv=demoPosGV(id,depot); if(gv!=null)manuell.push(zeile('✋ Manuell',id,gv));
+  });
+  Object.keys(depot.shorts||{}).forEach(function(id){
+    if(depot.shorts[id].menge<=1e-12)return;
+    var gv=demoPosGV(id,depot); if(gv!=null)manuell.push(zeile('✋ Manuell 🔻 Short',id,gv));
+  });
+  var out=manuell.length?manuell.join(''):'<div style="color:#888"><b>✋ Manuell:</b> keine Position</div>';
+  if(botId&&depot.positionen[botId]){
+    var gvB=demoPosGV(botId,depot);
+    out+=zeile('🤖 Automatik',botId,gvB!=null?gvB:0);
+  }else{
+    out+='<div style="color:#888"><b>🤖 Automatik:</b> keine Position</div>';
+  }
+  el.innerHTML=out;
+}
+
 function demoWerteAktualisieren(){
   demoBotStatusZeigen();
   var view=document.getElementById('ansicht-demo');
@@ -1630,6 +1673,7 @@ function demoWerteAktualisieren(){
   if(kaufSel&&kaufSel.options.length===0&&aktuelleCoins.length)demoFormulareAufbauen();
   if(demoAutoStopPruefen()){demoFormulareAufbauen();}
   var depot=demoLaden();
+  demoUebersichtZeigen(depot);
   var posWert=0,html='';
   Object.keys(depot.positionen).forEach(function(id){
     var p=depot.positionen[id];
