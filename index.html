@@ -139,6 +139,12 @@ h1{margin:0;font-size:22px}
 <button class="grau" onclick="chartVerkaufenAlles()">Alles</button>
 <button onclick="chartVerkaufen()">🔴 Verkaufen</button>
 </div>
+<div class="chart-trade-zeile" style="margin-top:6px">
+<input type="number" id="chart-short-betrag" placeholder="€">
+<button class="grau" onclick="chartShortAlles()">Alles</button>
+<button onclick="chartShort()">🔻 Short</button>
+<button class="grau" onclick="chartShortDecken()">Short schließen</button>
+</div>
 <div class="chart-trade-info" id="chart-trade-bestand"></div>
 <div class="chart-trade-info" id="chart-trade-info" style="color:#4caf50"></div>
 <div style="font-size:11px;color:#777">Demo-Spielgeld · Kauf/Verkauf zum €-Kurs, mit deinen Demo-Gebühren.</div>
@@ -288,6 +294,22 @@ h1{margin:0;font-size:22px}
 <button onclick="demoVerkaufen()">Verkaufen</button>
 </div>
 <div class="rechner-ergebnis" id="demo-verkauf-info"></div>
+</div>
+<div class="rechner">
+<div class="rechner-titel">🔻 Short — auf fallende Kurse setzen</div>
+<div class="rechner-zeile">
+<select id="demo-short-coin" onchange="demoShortVorschau()"></select>
+<input type="number" id="demo-short-betrag" placeholder="€" oninput="demoShortVorschau()">
+<button class="grau" onclick="demoShortBetragAlles()">Alles</button>
+<button onclick="demoShortOeffnen()">Short öffnen</button>
+</div>
+<div class="rechner-zeile">
+<input type="number" id="demo-short-menge" placeholder="Menge" step="any">
+<button class="grau" onclick="demoShortMengeAlles()">Alles</button>
+<button onclick="demoShortDecken()">Eindecken (schließen)</button>
+</div>
+<div class="rechner-ergebnis" id="demo-short-info"></div>
+<div class="signal-hinweis">Beim Short verkaufst du einen Coin, den du nicht besitzt, zum aktuellen Kurs. Fällt der Kurs, kaufst du ihn billiger zurück und behältst die Differenz. Steigt er, machst du Verlust. Der Einsatz muss durch freies Handelsgeld gedeckt sein. Kein Hebel.</div>
 </div>
 <div class="rechner">
 <div class="rechner-titel">📣 Signale (mechanische Regeln)</div>
@@ -1329,6 +1351,7 @@ function demoLaden(){
   if(typeof x.handelsziel!=='number')x.handelsziel=DEMO_START;
   if(typeof x.autoSichern!=='boolean')x.autoSichern=true;
   if(typeof x.autoStop!=='boolean')x.autoStop=false;
+  if(!x.shorts||typeof x.shorts!=='object')x.shorts={};
   return x;
 }
 function demoSpeichern(x){localStorage.setItem('mb_demo',JSON.stringify(x));}
@@ -1399,8 +1422,15 @@ function demoFormulareAufbauen(){
   var gehalten=Object.keys(depot.positionen).filter(function(id){return depot.positionen[id].menge>1e-12;});
   verkSel.innerHTML=gehalten.length?gehalten.map(function(id){return '<option value="'+id+'">'+demoName(id)+'</option>';}).join(''):'<option value="">— keine Positionen —</option>';
   if(vV&&gehalten.indexOf(vV)>=0)verkSel.value=vV;
+  var shortSel=document.getElementById('demo-short-coin');
+  if(shortSel){
+    var vS=shortSel.value;
+    shortSel.innerHTML=aktuelleCoins.map(function(c){return '<option value="'+c.id+'">'+c.name+' ('+c.symbol.toUpperCase()+')</option>';}).join('');
+    if(vS&&aktuelleCoins.some(function(c){return c.id===vS;}))shortSel.value=vS;
+  }
   demoGebuehrInfo();
   demoKaufVorschau();
+  demoShortVorschau();
 }
 
 function demoKaufVorschau(){
@@ -1431,9 +1461,18 @@ function demoAutoStopPruefen(){
     if(stop>0&&proz<=-stop)treffer.push({id:id,menge:p.menge,grund:'🔴 Auto-Stop '+proz.toFixed(1)+' %'});
     else if(ziel>0&&proz>=ziel)treffer.push({id:id,menge:p.menge,grund:'🟢 Auto-Ziel +'+proz.toFixed(1)+' %'});
   });
+  Object.keys(depot.shorts||{}).forEach(function(id){
+    var s=depot.shorts[id];
+    if(s.menge<=1e-12)return;
+    var preis=demoPreis(id);
+    if(preis==null||s.erloes<=0)return;
+    var proz=(s.erloes-s.menge*preis)/s.erloes*100;
+    if(stop>0&&proz<=-stop)treffer.push({id:id,short:true,menge:s.menge,grund:'🔴 Auto-Stop Short '+proz.toFixed(1)+' %'});
+    else if(ziel>0&&proz>=ziel)treffer.push({id:id,short:true,menge:s.menge,grund:'🟢 Auto-Ziel Short +'+proz.toFixed(1)+' %'});
+  });
   if(!treffer.length)return false;
   demoAutoStopLaeuft=true;
-  var msgs=treffer.map(function(x){var r=demoVerkaufCore(x.id,x.menge);return x.grund+' → '+r.text;});
+  var msgs=treffer.map(function(x){var r=x.short?demoShortDeckenCore(x.id,x.menge):demoVerkaufCore(x.id,x.menge);return x.grund+' → '+r.text;});
   demoAutoStopLaeuft=false;
   demoTradeFlag=true;
   try{demoBeep();}catch(e){}
@@ -1475,13 +1514,38 @@ function demoWerteAktualisieren(){
       +'<div class="change '+kl+'">'+(gv>=0?'+':'')+eur(gv)+' ('+(gv>=0?'+':'')+proz.toFixed(2)+'%)</div></div>'
       +'</div>';
   });
-  document.getElementById('demo-positionen').innerHTML=html||'<div class="such-hinweis">Noch keine Positionen – oben etwas kaufen.</div>';
+  var zielG=depot.zielGewinn||0, stopG=depot.maxVerlust||0;
+  var shortLiab=0, shortErloesSumme=0;
+  Object.keys(depot.shorts||{}).forEach(function(id){
+    var s=depot.shorts[id];
+    if(s.menge<=1e-12)return;
+    var preis=demoPreis(id);
+    var liab=preis!=null?s.menge*preis:0;
+    shortLiab+=liab; shortErloesSumme+=s.erloes;
+    var gv=s.erloes-liab;
+    var proz=s.erloes>0?gv/s.erloes*100:0;
+    var kl=gv>=0?'up':'down';
+    var einstieg=s.menge>0?s.erloes/s.menge:0;
+    var sig;
+    if(stopG>0&&proz<=-stopG)sig='🔴 Stop-Loss ('+proz.toFixed(1)+' %) – Regel: eindecken';
+    else if(zielG>0&&proz>=zielG)sig='🟢 Zielgewinn (+'+proz.toFixed(1)+' %) – Regel: Gewinn mitnehmen, eindecken';
+    else if(zielG>0&&proz>=zielG-3)sig='🟡 kurz vor Zielgewinn (+'+proz.toFixed(1)+' %)';
+    else sig='⚪ läuft ('+(proz>=0?'+':'')+proz.toFixed(1)+' %) – halten';
+    html+='<div class="demo-pos">'
+      +'<div class="coin-info"><div class="coin-name">🔻 '+demoName(id)+' (Short)</div>'
+      +'<div class="coin-symbol">'+mengeTxt(s.menge)+' · Ø '+formatierePreis(einstieg)+' € · jetzt '+(preis!=null?formatierePreis(preis)+' €':'–')+'</div>'
+      +'<div style="font-size:12px;color:#aaa;margin-top:2px">'+sig+'</div></div>'
+      +'<div class="coin-price"><div class="price">'+eur(liab)+'</div>'
+      +'<div class="change '+kl+'">'+(gv>=0?'+':'')+eur(gv)+' ('+(gv>=0?'+':'')+proz.toFixed(2)+'%)</div></div>'
+      +'</div>';
+  });
+  document.getElementById('demo-positionen').innerHTML=html||'<div class="such-hinweis">Noch keine Positionen – oben etwas kaufen oder shorten.</div>';
   var kostenSumme=0;
   Object.keys(depot.positionen).forEach(function(id){if(depot.positionen[id].menge>1e-12)kostenSumme+=depot.positionen[id].kosten;});
   var tresor=depot.tresor||0;
-  var gesamt=depot.bar+posWert+tresor, gGV=gesamt-DEMO_START;
-  var realisiert=depot.bar+tresor+kostenSumme-DEMO_START;
-  var offen=posWert-kostenSumme;
+  var gesamt=depot.bar+posWert+tresor-shortLiab, gGV=gesamt-DEMO_START;
+  var realisiert=depot.bar+tresor+kostenSumme-shortErloesSumme-DEMO_START;
+  var offen=(posWert-kostenSumme)+(shortErloesSumme-shortLiab);
   document.getElementById('demo-bar').textContent=eur(depot.bar);
   document.getElementById('demo-posval').textContent=eur(posWert);
   var trEl=document.getElementById('demo-tresor');if(trEl)trEl.textContent=eur(tresor);
@@ -1500,10 +1564,11 @@ function demoWerteAktualisieren(){
         +'<span style="color:#ffb74d;font-weight:bold">🔒 Tresor</span> '+t.name+' · '+eur(t.betrag)
         +'<div style="color:#888;font-size:11px">'+new Date(t.zeit).toLocaleString('de-DE')+'</div></div>';
     }
-    var farbe=t.art==='kauf'?'#4caf50':'#f44336';
     var geb=t.gebuehr?' · Gebühr −'+eur(t.gebuehr):'';
+    var titel={kauf:'Kauf',verkauf:'Verkauf',short:'🔻 Short auf',decken:'Short zu'}[t.art]||t.art;
+    var farbe=(t.art==='kauf')?'#4caf50':(t.art==='short'?'#ff9800':'#f44336');
     return '<div style="padding:6px 0;border-bottom:1px solid #2c2c2c">'
-      +'<span style="color:'+farbe+';font-weight:bold">'+(t.art==='kauf'?'Kauf':'Verkauf')+'</span> '+t.name+' · '
+      +'<span style="color:'+farbe+';font-weight:bold">'+titel+'</span> '+t.name+' · '
       +mengeTxt(t.menge)+' zu '+formatierePreis(t.preis)+' € = '+eur(t.betrag)+geb
       +'<div style="color:#888;font-size:11px">'+new Date(t.zeit).toLocaleString('de-DE')+'</div></div>';
   }).join('');
@@ -1588,6 +1653,7 @@ async function demoSignaleSammeln(){
   var kaufId=document.getElementById('demo-kauf-coin').value;
   if(kaufId)ziele.push({id:kaufId,art:'kauf'});
   Object.keys(depot.positionen).forEach(function(id){if(depot.positionen[id].menge>1e-12)ziele.push({id:id,art:'verkauf'});});
+  Object.keys(depot.shorts||{}).forEach(function(id){if(depot.shorts[id].menge>1e-12)ziele.push({id:id,art:'short'});});
   var gesehen={},zeilen=[],signale=[];
   for(var i=0;i<ziele.length;i++){
     var z=ziele[i],key=z.id+'-'+z.art;
@@ -1606,6 +1672,17 @@ async function demoSignaleSammeln(){
         var txt=stark?'🟢 starkes Kauf-Signal':(r.erfuellt>=2?'🟡 leichtes Kauf-Signal':'⚪ kein Kauf-Signal');
         zeilen.push('<b>'+coin.name+' – Kaufen:</b> '+txt+' ('+r.erfuellt+'/5 Regeln, '+tf+'-Kerzen)');
         signale.push({id:z.id,name:coin.name,art:'kauf',stark:stark,text:coin.name+': Kauf-Signal '+r.erfuellt+'/5 ('+tf+')'});
+      }else if(z.art==='short'){
+        var rd=dipRegeln(closes,schwelle);
+        var s=depot.shorts[z.id];
+        var sproz=s.erloes>0?((s.erloes-s.menge*coin.current_price)/s.erloes*100):0;
+        var sextra=[];
+        if((depot.zielGewinn||0)>0&&sproz>=depot.zielGewinn)sextra.push('Zielgewinn +'+sproz.toFixed(1)+' %');
+        if((depot.maxVerlust||0)>0&&sproz<=-depot.maxVerlust)sextra.push('Stop-Loss '+sproz.toFixed(1)+' %');
+        var starkS=sextra.length>0||rd.erfuellt>=4;
+        var txtS=starkS?'🟢 Short schließen (eindecken)':(rd.erfuellt>=2?'🟡 beobachten':'⚪ laufen lassen');
+        zeilen.push('<b>🔻 '+coin.name+' – Short:</b> '+txtS+' ('+rd.erfuellt+'/5 Dip-Regeln'+(sextra.length?' + '+sextra.join(', '):'')+', '+tf+')');
+        signale.push({id:z.id,name:coin.name,art:'short',stark:starkS,text:'🔻 '+coin.name+': Short schließen '+(sextra.length?'('+sextra.join(', ')+')':'('+rd.erfuellt+'/5)')});
       }else{
         var rv=verkaufRegeln(closes,schwelle);
         var pos=depot.positionen[z.id];
@@ -1688,11 +1765,16 @@ async function demoAlarmPruefen(){
       var b=document.getElementById('demo-alarm');
       b.style.display='block';
       b.innerHTML='🔔 <b>'+new Date().toLocaleTimeString('de-DE')+'</b> – jetzt entscheiden:<br>'
-        +neue.map(function(s){return (s.art==='kauf'?'🟢 ':'🔴 ')+s.text;}).join('<br>');
+        +neue.map(function(s){return (s.art==='kauf'?'🟢 ':(s.art==='short'?'🔻 ':'🔴 '))+s.text;}).join('<br>');
       var sell=neue.filter(function(s){return s.art==='verkauf';})[0];
       if(sell){
         var vs=document.getElementById('demo-verkauf-coin');
         if(vs&&Array.prototype.some.call(vs.options,function(o){return o.value===sell.id;}))vs.value=sell.id;
+      }
+      var sh=neue.filter(function(s){return s.art==='short';})[0];
+      if(sh){
+        var shs=document.getElementById('demo-short-coin');
+        if(shs&&Array.prototype.some.call(shs.options,function(o){return o.value===sh.id;}))shs.value=sh.id;
       }
     }
   }catch(e){}
@@ -1748,6 +1830,89 @@ function demoVerkaufCore(id,menge){
   var txt='✅ '+demoName(id)+' verkauft: '+eur(brutto)+' − '+eur(gebuehr)+' Gebühr = '+eur(netto)+' ('+(gv>=0?'Gewinn +':'Verlust ')+eur(gv)+').';
   if(gesichert>0)txt+=' 🔒 '+eur(gesichert)+' in den Tresor.';
   return {ok:true,text:txt};
+}
+function demoAutoTresor(depot,gv){
+  if(!(depot.autoSichern&&gv>0&&depot.bar>depot.handelsziel))return 0;
+  var g=Math.min(depot.bar-depot.handelsziel,gv);
+  depot.bar-=g;
+  depot.tresor=(depot.tresor||0)+g;
+  depot.verlauf.unshift({zeit:Date.now(),art:'tresor',name:'Gewinn gesichert',menge:0,preis:0,betrag:g});
+  return g;
+}
+function demoShortOeffnenCore(id,brutto){
+  var depot=demoLaden();
+  var preis=demoPreis(id);
+  if(!id||preis==null)return {ok:false,text:'⚠️ Kurs nicht verfügbar.'};
+  if(!brutto||brutto<=0)return {ok:false,text:'⚠️ Bitte einen Euro-Betrag eingeben.'};
+  if(brutto>depot.bar)return {ok:false,text:'⚠️ Short muss durch freies Guthaben gedeckt sein. Frei: '+eur(depot.bar)+'.'};
+  var gebuehr=demoGebuehrFuer(brutto,depot);
+  if(gebuehr>=brutto)return {ok:false,text:'⚠️ Betrag zu klein – die Gebühr wäre größer als der Short.'};
+  var menge=brutto/preis;
+  var erloes=brutto-gebuehr;
+  if(!depot.shorts[id])depot.shorts[id]={menge:0,erloes:0};
+  depot.shorts[id].menge+=menge;
+  depot.shorts[id].erloes+=erloes;
+  depot.bar+=erloes;
+  depot.verlauf.unshift({zeit:Date.now(),art:'short',name:demoName(id),menge:menge,preis:preis,betrag:erloes,gebuehr:gebuehr});
+  demoSpeichern(depot);
+  demoTradeFlag=true;
+  return {ok:true,text:'🔻 Short auf '+demoName(id)+' eröffnet: '+eur(brutto)+' zum Kurs '+formatierePreis(preis)+' € (davon '+eur(gebuehr)+' Gebühr).'};
+}
+function demoShortDeckenCore(id,menge){
+  var depot=demoLaden();
+  var preis=demoPreis(id);
+  var s=depot.shorts[id];
+  if(!id||!s)return {ok:false,text:'⚠️ Kein Short in diesem Coin.'};
+  if(preis==null)return {ok:false,text:'⚠️ Kurs nicht verfügbar.'};
+  if(!menge||menge<=0)return {ok:false,text:'⚠️ Bitte eine Menge eingeben (oder „Alles").'};
+  if(menge>s.menge)menge=s.menge;
+  var anteil=menge/s.menge;
+  var brutto=menge*preis;
+  var gebuehr=demoGebuehrFuer(brutto,depot);
+  var kosten=brutto+gebuehr;
+  var erloesAnteil=s.erloes*anteil;
+  s.menge-=menge;s.erloes-=erloesAnteil;
+  if(s.menge<=1e-12)delete depot.shorts[id];
+  depot.bar-=kosten;
+  var gv=erloesAnteil-kosten;
+  depot.verlauf.unshift({zeit:Date.now(),art:'decken',name:demoName(id),menge:menge,preis:preis,betrag:kosten,gebuehr:gebuehr});
+  var gesichert=demoAutoTresor(depot,gv);
+  demoSpeichern(depot);
+  demoTradeFlag=true;
+  var txt='✅ Short '+demoName(id)+' eingedeckt: Rückkauf '+eur(brutto)+' + '+eur(gebuehr)+' Gebühr = '+eur(kosten)+' ('+(gv>=0?'Gewinn +':'Verlust ')+eur(gv)+').';
+  if(gesichert>0)txt+=' 🔒 '+eur(gesichert)+' in den Tresor.';
+  return {ok:true,text:txt};
+}
+function demoShortVorschau(){
+  var sel=document.getElementById('demo-short-coin');if(!sel)return;
+  var el=document.getElementById('demo-short-info');
+  var preis=demoPreis(sel.value);
+  var betrag=parseFloat(document.getElementById('demo-short-betrag').value);
+  var depot=demoLaden();
+  if(!preis||!betrag||betrag<=0){el.textContent='';return;}
+  var geb=demoGebuehrFuer(betrag,depot);
+  el.textContent='🔻 Short '+eur(betrag)+' ≈ '+mengeTxt(betrag/preis)+' Stück · '+eur(geb)+' Gebühr · Deckung nötig, frei: '+eur(depot.bar);
+}
+function demoShortOeffnen(){
+  var r=demoShortOeffnenCore(document.getElementById('demo-short-coin').value,parseFloat(document.getElementById('demo-short-betrag').value));
+  document.getElementById('demo-status').textContent=r.text;
+  if(r.ok)document.getElementById('demo-short-betrag').value='';
+  demoNachTrade();
+}
+function demoShortBetragAlles(){
+  document.getElementById('demo-short-betrag').value=Math.floor(demoLaden().bar*100)/100;
+  demoShortVorschau();
+}
+function demoShortMengeAlles(){
+  var depot=demoLaden();
+  var id=document.getElementById('demo-short-coin').value;
+  if(depot.shorts[id])document.getElementById('demo-short-menge').value=depot.shorts[id].menge;
+}
+function demoShortDecken(){
+  var r=demoShortDeckenCore(document.getElementById('demo-short-coin').value,parseFloat(document.getElementById('demo-short-menge').value));
+  document.getElementById('demo-status').textContent=r.text;
+  if(r.ok)document.getElementById('demo-short-menge').value='';
+  demoNachTrade();
 }
 function demoTresorRein(){
   var depot=demoLaden();
@@ -1840,6 +2005,25 @@ function chartVerkaufen(){
   if(r.ok)document.getElementById('chart-verkauf-menge').value='';
   demoNachTrade();
 }
+function chartShort(){
+  var id=chartCoinId();
+  var r=demoShortOeffnenCore(id,parseFloat(document.getElementById('chart-short-betrag').value));
+  document.getElementById('chart-trade-info').textContent=r.text;
+  if(r.ok)document.getElementById('chart-short-betrag').value='';
+  demoNachTrade();
+}
+function chartShortAlles(){
+  document.getElementById('chart-short-betrag').value=Math.floor(demoLaden().bar*100)/100;
+}
+function chartShortDecken(){
+  var id=chartCoinId();
+  var depot=demoLaden();
+  var s=id?depot.shorts[id]:null;
+  if(!s){document.getElementById('chart-trade-info').textContent='⚠️ Kein Short in diesem Coin.';return;}
+  var r=demoShortDeckenCore(id,s.menge);
+  document.getElementById('chart-trade-info').textContent=r.text;
+  demoNachTrade();
+}
 function demoChartTradeLeiste(){
   var box=document.getElementById('chart-trade');
   if(!box)return;
@@ -1847,6 +2031,7 @@ function demoChartTradeLeiste(){
   var depot=demoLaden();
   var preis=id?demoPreis(id):null;
   var pos=id?depot.positionen[id]:null;
+  var sh=id?depot.shorts[id]:null;
   var best=document.getElementById('chart-trade-bestand');
   if(!id||preis==null){best.textContent='Kurs lädt…';return;}
   var txt='frei: '+eur(depot.bar);
@@ -1854,13 +2039,17 @@ function demoChartTradeLeiste(){
     var wert=pos.menge*preis,gv=wert-pos.kosten,proz=pos.kosten>0?gv/pos.kosten*100:0;
     txt='Bestand: '+mengeTxt(pos.menge)+' '+chartAktivesSymbol+' = '+eur(wert)+' ('+(gv>=0?'+':'')+proz.toFixed(2)+' %) · '+txt;
   }
+  if(sh&&sh.menge>1e-12){
+    var liab=sh.menge*preis,sgv=sh.erloes-liab,sproz=sh.erloes>0?sgv/sh.erloes*100:0;
+    txt='🔻 Short: '+mengeTxt(sh.menge)+' '+chartAktivesSymbol+' ('+(sgv>=0?'+':'')+sproz.toFixed(2)+' %) · '+txt;
+  }
   best.textContent='Kurs '+formatierePreis(preis)+' € · '+txt;
 }
 
 function demoZuruecksetzen(){
   if(!confirm('Depot wirklich zurücksetzen? Alle Positionen und der Verlauf werden gelöscht, du startest wieder mit 10.000 € Spielgeld.'))return;
   var alt=demoLaden();
-  demoSpeichern({bar:DEMO_START,positionen:{},verlauf:[],tresor:0,gebuehrProzent:alt.gebuehrProzent,gebuehrMin:alt.gebuehrMin,zielGewinn:alt.zielGewinn,maxVerlust:alt.maxVerlust,signalTf:alt.signalTf,alarmAn:alt.alarmAn,handelsziel:alt.handelsziel,autoSichern:alt.autoSichern,autoStop:alt.autoStop});
+  demoSpeichern({bar:DEMO_START,positionen:{},shorts:{},verlauf:[],tresor:0,gebuehrProzent:alt.gebuehrProzent,gebuehrMin:alt.gebuehrMin,zielGewinn:alt.zielGewinn,maxVerlust:alt.maxVerlust,signalTf:alt.signalTf,alarmAn:alt.alarmAn,handelsziel:alt.handelsziel,autoSichern:alt.autoSichern,autoStop:alt.autoStop});
   demoTradeFlag=true;
   demoFormulareAufbauen();
   demoWerteAktualisieren();
