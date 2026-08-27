@@ -1650,21 +1650,33 @@ function demoUebersichtZeigen(depot){
     var kl=r.gv>=0?'up':'down';
     return '<div><b>'+label+':</b> <span class="'+kl+'">'+demoName(id)+' · '+(r.gv>=0?'+':'')+eur(r.gv)+' ('+(r.proz>=0?'+':'')+r.proz.toFixed(1)+'%)</span></div>';
   }
-  var manuell=[];
+  var manuell=[], summeGV=0, summeBasis=0, anzahl=0;
+  function zaehl(id,r,istShort){
+    summeGV+=r.gv;anzahl++;
+    var p=depot.positionen[id];
+    summeBasis+=istShort?(depot.shorts[id].erloes):(p?p.kosten:0);
+  }
   Object.keys(depot.positionen).forEach(function(id){
     if(id===botId||depot.positionen[id].menge<=1e-12)return;
-    var r=demoPosGV(id,depot); if(r)manuell.push(zeile('✋ Manuell',id,r));
+    var r=demoPosGV(id,depot); if(r){manuell.push(zeile('✋ Manuell',id,r));zaehl(id,r,false);}
   });
   Object.keys(depot.shorts||{}).forEach(function(id){
     if(depot.shorts[id].menge<=1e-12)return;
-    var r=demoPosGV(id,depot); if(r)manuell.push(zeile('✋ Manuell 🔻 Short',id,r));
+    var r=demoPosGV(id,depot); if(r){manuell.push(zeile('✋ Manuell 🔻 Short',id,r));zaehl(id,r,true);}
   });
   var out=manuell.length?manuell.join(''):'<div style="color:#888"><b>✋ Manuell:</b> keine Position</div>';
   if(botId&&depot.positionen[botId]){
-    var rB=demoPosGV(botId,depot);
-    out+=zeile('🤖 Automatik',botId,rB||{gv:0,proz:0});
+    var rB=demoPosGV(botId,depot)||{gv:0,proz:0};
+    out+=zeile('🤖 Automatik',botId,rB);
+    zaehl(botId,rB,false);
   }else{
     out+='<div style="color:#888"><b>🤖 Automatik:</b> keine Position</div>';
+  }
+  if(anzahl>0){
+    var kl=summeGV>=0?'up':'down';
+    var sp=summeBasis>0?summeGV/summeBasis*100:0;
+    out+='<div style="border-top:1px solid #2c2c2c;margin-top:6px;padding-top:6px"><b>Σ Summe offene Positionen:</b> '
+      +'<span class="'+kl+'">'+(summeGV>=0?'+':'')+eur(summeGV)+' ('+(sp>=0?'+':'')+sp.toFixed(1)+'%)</span></div>';
   }
   el.innerHTML=out;
 }
