@@ -391,12 +391,16 @@ Vorlagen: <a href="#" onclick="demoPreset(2,1);return false" style="color:#2962f
 </div>
 </div>
 <div class="rechner" style="max-width:640px">
-<div class="rechner-titel">📊 Statistik (abgeschlossene Trades)</div>
+<div class="rechner-titel" id="titel-dst" onclick="rechnerUmschalten('dst')"><span class="rechner-pfeil" id="pfeil-dst">▾</span>📊 Statistik (abgeschlossene Trades)</div>
+<div class="rechner-body" id="body-dst">
 <div id="demo-statistik" style="font-size:13px;color:#ccc;line-height:1.7">Noch keine abgeschlossenen Trades.</div>
 </div>
+</div>
 <div class="rechner" style="max-width:640px">
-<div class="rechner-titel">📜 Verlauf</div>
+<div class="rechner-titel" id="titel-dvl" onclick="rechnerUmschalten('dvl')"><span class="rechner-pfeil" id="pfeil-dvl">▾</span>📜 Verlauf</div>
+<div class="rechner-body" id="body-dvl">
 <div id="demo-verlauf" style="font-size:13px;color:#ccc">Noch keine Trades.</div>
+</div>
 </div>
 <button class="refresh-btn" onclick="demoZuruecksetzen()">↺ Depot auf 10.000 € zurücksetzen</button>
 </div>
@@ -431,7 +435,7 @@ function rechnerUmschalten(id){
   wendeRechnerZustandAn(id);
 }
 (function(){var z=rechnerZustand();var ch=false;if(z.dgv===undefined){z.dgv=true;ch=true;}if(z.dtr===undefined){z.dtr=true;ch=true;}if(ch)localStorage.setItem('mb_rechner_zu',JSON.stringify(z));})();
-['kr1','kr2','ak1','ak2','dgv','dtr'].forEach(wendeRechnerZustandAn);
+['kr1','kr2','ak1','ak2','dgv','dtr','dst','dvl'].forEach(wendeRechnerZustandAn);
 function demoGvUmschalten(){
   rechnerUmschalten('dgv');
   if(!rechnerZustand().dgv){setTimeout(function(){demoWerteAktualisieren();},40);}
