@@ -899,6 +899,9 @@ function chartZeitrahmen(tf){
 async function chartDatenLaden(){
   if(!chartAktivesSymbol||typeof LightweightCharts==='undefined')return;
   chartLiveStop();
+  chartLiveMsgZeit=0;
+  chartLiveVersuche=0;
+  chartLiveStatus('lädt…',false);
   var hinweisEl=document.getElementById('chart-hinweis');
   hinweisEl.textContent='⏳ Lade Chart...';
   var pair=chartAktivesSymbol.toUpperCase()+'USDT';
@@ -914,6 +917,8 @@ async function chartDatenLaden(){
     chartSubUpdate();
     signalAuswerten();
     hinweisEl.textContent='';
+    chartLiveMsgZeit=0;
+    chartLiveVersuche=0;
     chartLiveStart(pair,chartTf);
   }catch(e){
     chartRohKerzen=[];
@@ -921,27 +926,35 @@ async function chartDatenLaden(){
     indikatorenEntfernen();
     chartSubUpdate();
     signalAuswerten();
-    chartLiveStatus(false,'kein Live-Chart');
+    chartLiveStatus('kein Live-Chart',false);
     hinweisEl.textContent='⚠️ Für '+chartAktivesSymbol+' gibt es bei Binance keinen Chart.';
   }
 }
 
 var chartSocket=null;
 var chartLetztesIndUpdate=0;
+var chartLiveMsgZeit=0;
+var chartLiveVersuche=0;
+var chartLiveTimer=null;
 
-function chartLiveStatus(an,text){
+function chartLiveStatus(text,gruen){
   var el=document.getElementById('chart-live');
   if(!el)return;
-  el.className='chart-live'+(an?' an':'');
-  el.textContent=an?('🟢 live · '+text):('🔴 '+text);
+  el.className='chart-live'+(gruen?' an':'');
+  el.textContent=(gruen?'🟢 ':'🔴 ')+text;
+}
+
+function chartPanelOffen(){
+  var p=document.getElementById('chart-panel');
+  return !!(chartAktivesSymbol&&p&&p.style.display!=='none');
 }
 
 function chartLiveStop(){
+  if(chartLiveTimer){clearTimeout(chartLiveTimer);chartLiveTimer=null;}
   if(chartSocket){
-    try{chartSocket.onclose=null;chartSocket.close();}catch(e){}
+    try{chartSocket.onopen=chartSocket.onmessage=chartSocket.onerror=chartSocket.onclose=null;chartSocket.close();}catch(e){}
     chartSocket=null;
   }
-  chartLiveStatus(false,'nicht live');
 }
 
 function chartLiveStart(pair,tf){
@@ -949,19 +962,32 @@ function chartLiveStart(pair,tf){
   try{
     var s=new WebSocket('wss://stream.binance.com:9443/ws/'+pair.toLowerCase()+'@kline_'+tf);
     chartSocket=s;
-    s.onopen=function(){chartLiveStatus(true,'…');};
+    // verbunden, aber nach 9 s keine Kerzendaten -> dieser Coin hat keinen Live-Stream
+    var stummTimer=setTimeout(function(){
+      if(s===chartSocket&&!chartLiveMsgZeit){
+        chartLiveStop();
+        chartLiveStatus('kein Live-Kurs für diesen Coin',false);
+      }
+    },9000);
+    s.onopen=function(){
+      if(s!==chartSocket)return;
+      if(!chartLiveMsgZeit)chartLiveStatus('verbinde…',false);
+    };
     s.onmessage=function(ev){
       if(s!==chartSocket)return;
       try{
         var k=JSON.parse(ev.data).k;
         if(!k)return;
+        chartLiveMsgZeit=Date.now();
+        chartLiveVersuche=0;
+        clearTimeout(stummTimer);
         var kerze={time:Math.floor(k.t/1000),open:+k.o,high:+k.h,low:+k.l,close:+k.c,volume:+k.v};
         var letzte=chartRohKerzen[chartRohKerzen.length-1];
         if(letzte&&letzte.time===kerze.time){chartRohKerzen[chartRohKerzen.length-1]=kerze;}
         else if(letzte&&kerze.time>letzte.time){chartRohKerzen.push(kerze);if(chartRohKerzen.length>600)chartRohKerzen.shift();}
         else return;
         candleSeries.update({time:kerze.time,open:kerze.open,high:kerze.high,low:kerze.low,close:kerze.close});
-        chartLiveStatus(true,new Date().toLocaleTimeString('de-DE'));
+        chartLiveStatus('live · '+new Date().toLocaleTimeString('de-DE'),true);
         var jetzt=Date.now();
         if(jetzt-chartLetztesIndUpdate>2000){
           chartLetztesIndUpdate=jetzt;
@@ -975,15 +1001,25 @@ function chartLiveStart(pair,tf){
     s.onerror=function(){};
     s.onclose=function(){
       if(s!==chartSocket)return;
-      chartLiveStatus(false,'getrennt – neuer Versuch…');
-      setTimeout(function(){
-        if(chartAktivesSymbol&&document.getElementById('chart-panel').style.display!=='none'){
-          chartLiveStart(pair,tf);
+      chartSocket=null;
+      clearTimeout(stummTimer);
+      if(!chartPanelOffen())return;
+      var frisch=(Date.now()-chartLiveMsgZeit)<15000;
+      if(frisch){
+        // nur kurz die Verbindung verloren -> Badge grün lassen, zügig neu verbinden
+        chartLiveTimer=setTimeout(function(){if(chartPanelOffen())chartLiveStart(pair,tf);},3000);
+      }else{
+        chartLiveVersuche++;
+        if(chartLiveVersuche>=4){
+          chartLiveStatus('kein Live-Kurs (Netz?) – Kurse im Chart stehen still',false);
+          return;
         }
-      },5000);
+        chartLiveStatus('getrennt – neuer Versuch…',false);
+        chartLiveTimer=setTimeout(function(){if(chartPanelOffen())chartLiveStart(pair,tf);},8000);
+      }
     };
   }catch(e){
-    chartLiveStatus(false,'nicht live');
+    chartLiveStatus('nicht live',false);
   }
 }
 
