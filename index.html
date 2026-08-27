@@ -1361,8 +1361,8 @@ function chartIndikatorenAktualisieren(){
     for(var i=0;i<werte.length;i++)if(werte[i]!=null)a.push({time:zeiten[i],value:werte[i]});
     return a;
   }
-  function linie(farbe,daten){
-    var s=chartObj.addLineSeries({color:farbe,lineWidth:2,priceLineVisible:false,lastValueVisible:false});
+  function linie(farbe,daten,breite){
+    var s=chartObj.addLineSeries({color:farbe,lineWidth:breite||2,priceLineVisible:false,lastValueVisible:false});
     s.setData(daten);
     indSeries.push(s);
   }
@@ -1374,9 +1374,9 @@ function chartIndikatorenAktualisieren(){
     var sd=berechneStdabw(closes,20,mitte);
     var oben=mitte.map(function(m,i){return (m!=null&&sd[i]!=null)?m+2*sd[i]:null;});
     var unten=mitte.map(function(m,i){return (m!=null&&sd[i]!=null)?m-2*sd[i]:null;});
-    linie('#888',punkte(oben));
-    linie('#888',punkte(mitte));
-    linie('#888',punkte(unten));
+    linie('#ef5350',punkte(oben));   // oberes Band – rot (teuer/überkauft)
+    linie('#fdd835',punkte(mitte),1); // Mittellinie SMA20 – gelb (neutral)
+    linie('#4caf50',punkte(unten));  // unteres Band – grün (günstig/überverkauft)
   }
   if(document.getElementById('ind-vol').checked){
     volumeSeries=chartObj.addHistogramSeries({priceFormat:{type:'volume'},priceScaleId:'',scaleMargins:{top:0.8,bottom:0}});
