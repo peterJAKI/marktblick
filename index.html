@@ -494,6 +494,7 @@ async function ladeKurse(){
     var jetzt=new Date().toLocaleTimeString('de-DE');
     document.getElementById('status').innerText='✅ Zuletzt aktualisiert: '+jetzt;
     await holeEurUsdRate();
+    await ladeBinancePaare();
     var liveKandidaten=coins.filter(function(c){return !eigene.includes(c.id);});
     starteLiveTicker(liveKandidaten);
   }catch(e){
@@ -510,18 +511,49 @@ async function holeEurUsdRate(){
   }catch(e){}
 }
 
+var binancePaare=null;
+function binancePaareAusCache(){
+  try{
+    var raw=localStorage.getItem('mb_binance_paare');
+    var zeit=parseInt(localStorage.getItem('mb_binance_paare_zeit'),10)||0;
+    if(raw&&Date.now()-zeit<86400000)return new Set(JSON.parse(raw));
+  }catch(e){}
+  return null;
+}
+async function ladeBinancePaare(){
+  if(binancePaare)return;
+  binancePaare=binancePaareAusCache();
+  if(binancePaare)return;
+  try{
+    var res=await fetch('https://api.binance.com/api/v3/ticker/price');
+    var d=await res.json();
+    if(!Array.isArray(d))return;
+    var arr=d.map(function(x){return x.symbol;});
+    binancePaare=new Set(arr);
+    localStorage.setItem('mb_binance_paare',JSON.stringify(arr));
+    localStorage.setItem('mb_binance_paare_zeit',Date.now());
+  }catch(e){}
+}
+
 var liveSocket=null;
 var letzteLiveKandidaten=[];
+var tickerOffenSeit=0;
+var letzterStreamString='';
 function starteLiveTicker(liveKandidaten){
   letzteLiveKandidaten=liveKandidaten;
-  if(liveSocket){try{liveSocket.close();}catch(e){}liveSocket=null;}
   var symbole=liveKandidaten.map(function(c){return c.symbol.toLowerCase()+'usdt';});
   symbole=symbole.filter(function(s,i){return s!=='usdtusdt'&&symbole.indexOf(s)===i;});
-  if(symbole.length===0)return;
+  if(binancePaare)symbole=symbole.filter(function(s){return binancePaare.has(s.toUpperCase());});
+  if(symbole.length===0){document.getElementById('status').innerText='ℹ️ Kein Live-Ticker für diese Coins.';return;}
   var streams=symbole.map(function(s){return s+'@ticker';}).join('/');
+  // Läuft schon mit genau diesen Streams? Dann nicht neu aufbauen (kein Flackern beim 60s-Refresh).
+  if(liveSocket&&liveSocket.readyState===1&&streams===letzterStreamString)return;
+  if(liveSocket){try{liveSocket.onclose=null;liveSocket.close();}catch(e){}liveSocket=null;}
+  letzterStreamString=streams;
   try{
     liveSocket=new WebSocket('wss://stream.binance.com:9443/stream?streams='+streams);
     liveSocket.onopen=function(){
+      tickerOffenSeit=Date.now();
       document.getElementById('status').innerHTML='🟢 <span class="live-status">Live verbunden</span>';
     };
     liveSocket.onmessage=function(ev){
@@ -543,8 +575,9 @@ function starteLiveTicker(liveKandidaten){
     };
     liveSocket.onerror=function(){};
     liveSocket.onclose=function(){
-      document.getElementById('status').innerText='⚠️ Live-Verbindung getrennt, versuche erneut...';
-      setTimeout(function(){starteLiveTicker(letzteLiveKandidaten);},5000);
+      var schnell=Date.now()-tickerOffenSeit<3000;
+      document.getElementById('status').innerText='⚠️ Live-Verbindung getrennt, neuer Versuch...';
+      setTimeout(function(){starteLiveTicker(letzteLiveKandidaten);},schnell?20000:5000);
     };
   }catch(e){}
 }

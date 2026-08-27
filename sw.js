@@ -1,7 +1,8 @@
-/* Marktblick Service Worker – einfacher Offline-Cache.
-   Die App-Hülle (HTML/Icon/Manifest) wird gecacht, damit sie auch ohne Netz startet.
-   Kursdaten kommen weiter live aus dem Internet und werden NICHT gecacht. */
-var CACHE = 'marktblick-v1';
+/* Marktblick Service Worker.
+   App-Hülle (HTML/Icon/Manifest) wird gecacht, damit die App auch offline startet.
+   HTML wird "Netz zuerst" geladen, damit Updates sofort ankommen.
+   Kursdaten kommen immer live aus dem Internet und werden NIE gecacht. */
+var CACHE = 'marktblick-v2';
 var HUELLE = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', function (e) {
@@ -14,25 +15,44 @@ self.addEventListener('activate', function (e) {
     caches.keys().then(function (keys) {
       return Promise.all(keys.filter(function (k) { return k !== CACHE; })
         .map(function (k) { return caches.delete(k); }));
-    })
+    }).then(function () { return self.clients.claim(); })
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', function (e) {
-  var url = e.request.url;
-  // Nur die eigene App-Hülle offline bedienen; alles andere (APIs, Chart-Lib) direkt aus dem Netz.
-  if (e.request.method !== 'GET' || url.indexOf('http') !== 0) return;
-  var eigene = url.indexOf(self.registration.scope) === 0;
-  var api = /binance|coingecko|finnhub|alphavantage|gold-api|unpkg|googleapis|gstatic/.test(url);
-  if (!eigene || api) return;
-  e.respondWith(
-    caches.match(e.request).then(function (hit) {
-      return hit || fetch(e.request).then(function (res) {
+  var req = e.request;
+  if (req.method !== 'GET' || req.url.indexOf('http') !== 0) return;
+  // APIs und externe Skripte immer direkt aus dem Netz, nie cachen
+  if (/binance|coingecko|finnhub|alphavantage|gold-api|unpkg|googleapis|gstatic/.test(req.url)) return;
+  // nur eigene Dateien behandeln
+  if (req.url.indexOf(self.registration.scope) !== 0) return;
+
+  var rest = req.url.slice(self.registration.scope.length).split('?')[0];
+  var istHTML = req.mode === 'navigate' || req.destination === 'document' ||
+                rest === '' || rest === 'index.html';
+
+  if (istHTML) {
+    // Netz zuerst -> neue Version kommt sofort an; Cache nur als Offline-Reserve
+    e.respondWith(
+      fetch(req).then(function (res) {
         var kopie = res.clone();
-        caches.open(CACHE).then(function (c) { c.put(e.request, kopie); });
+        caches.open(CACHE).then(function (c) { c.put('./index.html', kopie); });
         return res;
-      }).catch(function () { return caches.match('./index.html'); });
+      }).catch(function () {
+        return caches.match(req).then(function (h) { return h || caches.match('./index.html'); });
+      })
+    );
+    return;
+  }
+
+  // statische Reste (Icon, Manifest): Cache zuerst
+  e.respondWith(
+    caches.match(req).then(function (hit) {
+      return hit || fetch(req).then(function (res) {
+        var kopie = res.clone();
+        caches.open(CACHE).then(function (c) { c.put(req, kopie); });
+        return res;
+      });
     })
   );
 });
