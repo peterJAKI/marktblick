@@ -1694,7 +1694,7 @@ function demoBotListeZeigen(){
   var el=document.getElementById('demo-bot-liste');
   if(!el)return;
   var bots=demoLaden().bots||[];
-  if(!bots.length){el.innerHTML='<span style="color:#888">Keine Automatik läuft. Unten eine starten.</span>';return;}
+  if(!bots.length){el.innerHTML='<span style="color:#ddd">Keine Automatik läuft. Unten eine starten.</span>';return;}
   el.innerHTML='<b>Läuft gerade:</b>'+bots.map(function(b){
     return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:3px 0">'
       +'<span>'+(b.richtung==='short'?'🔻 Short':'▲ Long')+' <b>'+demoName(b.coinId)+'</b> · '+eur(b.einsatz)+' · Ziel +'+eur(b.gewinnEuro)+' / −'+eur(b.verlustEuro)+' · alle '+b.pruefMin+' Min.</span>'
@@ -1740,8 +1740,8 @@ function demoStatistikZeigen(depot){
     +zeile('Verlust-Trades',losses.length+' ('+q(losses.length)+')')
     +zeile('Ø Gewinn je Gewinn-Trade',wins.length?g(sumWin/wins.length):'–')
     +zeile('Ø Verlust je Verlust-Trade',losses.length?g(sumLoss/losses.length):'–')
-    +zeile('Bester Trade',g(best.gv)+' <span style="color:#888">('+best.name+', '+new Date(best.zeit).toLocaleDateString('de-DE')+')</span>')
-    +zeile('Schlechtester Trade',g(worst.gv)+' <span style="color:#888">('+worst.name+', '+new Date(worst.zeit).toLocaleDateString('de-DE')+')</span>')
+    +zeile('Bester Trade',g(best.gv)+' <span style="color:#ddd">('+best.name+', '+new Date(best.zeit).toLocaleDateString('de-DE')+')</span>')
+    +zeile('Schlechtester Trade',g(worst.gv)+' <span style="color:#ddd">('+worst.name+', '+new Date(worst.zeit).toLocaleDateString('de-DE')+')</span>')
     +zeile('Summe aller abgeschlossenen Trades',g(sumWin+sumLoss));
 }
 function demoUebersichtZeigen(depot){
@@ -1757,7 +1757,7 @@ function demoUebersichtZeigen(depot){
   function zeileManuell(label,id,istShort){
     var basis=istShort?depot.shorts[id].erloes:(depot.positionen[id]?depot.positionen[id].kosten:0);
     var r=demoPosGV(id,depot);
-    if(!r){ausstehend=true;return '<div style="color:#888"><b>'+label+':</b> '+demoName(id)+' · Kurs lädt…</div>';}
+    if(!r){ausstehend=true;return '<div style="color:#ddd"><b>'+label+':</b> '+demoName(id)+' · Kurs lädt…</div>';}
     summeGV+=r.gv; summeBasis+=basis; anzahl++;
     return '<div><b>'+label+':</b> '+demoName(id)+' · '+fmt(r.gv,r.proz)+'</div>';
   }
@@ -1770,22 +1770,22 @@ function demoUebersichtZeigen(depot){
     if(botSet[id]||depot.shorts[id].menge<=1e-12)return;
     manuell.push(zeileManuell('✋ Manuell 🔻 Short',id,true));
   });
-  var out=manuell.length?manuell.join(''):'<div style="color:#888"><b>✋ Manuell:</b> keine Position</div>';
+  var out=manuell.length?manuell.join(''):'<div style="color:#ddd"><b>✋ Manuell:</b> keine Position</div>';
   if(bots.length){
     bots.forEach(function(b){
       var label='🤖 Automatik '+(b.richtung==='short'?'🔻 Short':'▲ Long')+' '+demoName(b.coinId);
       var pl=demoBotPL(depot,b);
-      if(pl==null){ausstehend=true;out+='<div style="color:#888"><b>'+label+':</b> Kurs lädt…</div>';return;}
+      if(pl==null){ausstehend=true;out+='<div style="color:#ddd"><b>'+label+':</b> Kurs lädt…</div>';return;}
       summeGV+=pl; summeBasis+=b.einsatz; anzahl++;
-      out+='<div><b>'+label+':</b> '+fmt(pl,b.einsatz>0?pl/b.einsatz*100:0)+' <span style="color:#888">· Ziel +'+eur(b.gewinnEuro)+' / −'+eur(b.verlustEuro)+'</span></div>';
+      out+='<div><b>'+label+':</b> '+fmt(pl,b.einsatz>0?pl/b.einsatz*100:0)+' <span style="color:#ddd">· Ziel +'+eur(b.gewinnEuro)+' / −'+eur(b.verlustEuro)+'</span></div>';
     });
   }else{
-    out+='<div style="color:#888"><b>🤖 Automatik:</b> keine läuft</div>';
+    out+='<div style="color:#ddd"><b>🤖 Automatik:</b> keine läuft</div>';
   }
   if(anzahl>0){
     var sp=summeBasis>0?summeGV/summeBasis*100:0;
     out+='<div style="border-top:1px solid #2c2c2c;margin-top:6px;padding-top:6px"><b>Σ Summe offene Positionen:</b> '+fmt(summeGV,sp)
-      +(ausstehend?' <span style="color:#888">· eine Position wird noch geladen</span>':'')+'</div>';
+      +(ausstehend?' <span style="color:#ddd">· eine Position wird noch geladen</span>':'')+'</div>';
   }
   el.innerHTML=out;
 }
@@ -1884,8 +1884,8 @@ function demoWerteAktualisieren(){
     var risiko=posWert+shortLiab;
     var rp=gesamt>0?risiko/gesamt*100:0;
     var farbe=rp<25?'#4caf50':(rp<60?'#ff9800':'#f44336');
-    if(risiko<0.01){rEl.innerHTML='<span style="color:#888">⚖️ Aktuell im Risiko: 0 % – kein Geld in offenen Positionen.</span>';}
-    else rEl.innerHTML='⚖️ Aktuell im Risiko: <b style="color:'+farbe+'">'+rp.toFixed(0)+' %</b> deines Gesamtwerts <span style="color:#888">('+eur(risiko)+' von '+eur(gesamt)+')</span>';
+    if(risiko<0.01){rEl.innerHTML='<span style="color:#ddd">⚖️ Aktuell im Risiko: 0 % – kein Geld in offenen Positionen.</span>';}
+    else rEl.innerHTML='⚖️ Aktuell im Risiko: <b style="color:'+farbe+'">'+rp.toFixed(0)+' %</b> deines Gesamtwerts <span style="color:#ddd">('+eur(risiko)+' von '+eur(gesamt)+')</span>';
   }
   demoStatistikZeigen(depot);
   var vHtml=depot.verlauf.slice(0,20).map(function(t){
@@ -2088,7 +2088,7 @@ async function demoMarktSignale(){
   el.textContent='⏳ prüfe Kerzendaten…';
   var r=await demoSignaleSammeln();
   el.innerHTML=(r.zeilen.join('<br>')||'Nichts zu prüfen – erst einen Coin auswählen oder kaufen.')
-    +'<br><span style="color:#777">Stand: '+new Date().toLocaleTimeString('de-DE')+' · nur Regeln, keine Beratung</span>';
+    +'<br><span style="color:#ddd">Stand: '+new Date().toLocaleTimeString('de-DE')+' · nur Regeln, keine Beratung</span>';
 }
 
 var demoAlarmStatus={},demoAudioCtx=null,demoAlarmLaeuft=false;
@@ -2133,7 +2133,7 @@ async function demoAlarmPruefen(){
   try{
     var r=await demoSignaleSammeln();
     document.getElementById('demo-signale').innerHTML=(r.zeilen.join('<br>')||'—')
-      +'<br><span style="color:#777">Auto-Prüfung: '+new Date().toLocaleTimeString('de-DE')+'</span>';
+      +'<br><span style="color:#ddd">Auto-Prüfung: '+new Date().toLocaleTimeString('de-DE')+'</span>';
     var neue=[],aktiv={},starke=[];
     r.signale.forEach(function(s){
       if(!s.stark)return;
