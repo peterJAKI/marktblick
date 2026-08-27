@@ -1,0 +1,1781 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📊 Marktblick</title>
+<meta name="theme-color" content="#121212">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Marktblick">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<script>
+if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
+  window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});
+}
+</script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#121212;color:#eee}
+header{background:#1b1b1b;padding:16px;text-align:center;border-bottom:2px solid #333}
+h1{margin:0;font-size:22px}
+.sub{color:#999;font-size:13px;margin-top:4px}
+#status{text-align:center;padding:8px;font-size:13px;color:#888}
+#liste{max-width:640px;margin:0 auto;padding:10px}
+.coin{display:flex;align-items:center;gap:12px;background:#1e1e1e;border-radius:12px;padding:12px 14px;margin-bottom:8px;border:1px solid #2c2c2c}
+.coin.btc{border-color:#f7931a;box-shadow:0 0 12px rgba(247,147,26,0.25)}
+.coin img{width:32px;height:32px;border-radius:50%}
+.coin-info{flex:1;min-width:0}
+.coin-name{font-weight:bold;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.coin-symbol{color:#888;font-size:12px;text-transform:uppercase}
+.coin-price{text-align:right}
+.price{font-weight:bold;font-size:15px}
+.change{font-size:13px;font-weight:bold;margin-top:2px}
+.up{color:#4caf50}
+.down{color:#f44336}
+.live-status{color:#4caf50}
+.refresh-btn{display:block;margin:14px auto;padding:10px 20px;background:#2962ff;color:white;border:none;border-radius:20px;font-weight:bold;cursor:pointer}
+.refresh-btn:hover{background:#1e4fd6}
+.tabs{display:flex;justify-content:center;gap:8px;padding:10px;background:#1b1b1b;border-bottom:1px solid #333}
+.tab-btn{padding:9px 20px;border-radius:20px;border:2px solid #333;background:#1e1e1e;color:#999;font-weight:bold;font-size:14px;cursor:pointer}
+.tab-btn.active{background:#2962ff;border-color:#2962ff;color:#fff}
+.platzhalter{max-width:640px;margin:30px auto;text-align:center;color:#888;padding:20px}
+.suche{max-width:640px;margin:12px auto 0;padding:0 10px;display:flex;gap:8px}
+.suche input{flex:1;padding:10px 14px;border-radius:20px;border:1px solid #333;background:#1e1e1e;color:#eee;font-size:14px}
+.suche button{padding:10px 18px;border-radius:20px;border:none;background:#2962ff;color:white;font-weight:bold;cursor:pointer}
+.such-hinweis{max-width:640px;margin:6px auto 0;padding:0 14px;font-size:12px;color:#888;text-align:center}
+.entfernen-btn{background:none;border:none;color:#888;font-size:16px;cursor:pointer;padding:0 0 0 8px}
+.entfernen-btn:hover{color:#f44336}
+.rechner{max-width:640px;margin:12px auto 0;padding:14px;background:#1e1e1e;border:1px solid #2c2c2c;border-radius:12px}
+.rechner-titel{font-weight:bold;font-size:14px;margin-bottom:10px;color:#ccc;cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px}
+.rechner-pfeil{font-size:12px;color:#888;width:12px;display:inline-block}
+.rechner-body.zu{display:none}
+.rechner-titel.zu{margin-bottom:0}
+.rechner-zeile{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.rechner input,.rechner select{padding:9px 12px;border-radius:10px;border:1px solid #333;background:#121212;color:#eee;font-size:14px}
+.rechner input{width:100px}
+.rechner select{flex:1;min-width:120px}
+.rechner-ergebnis{margin-top:10px;font-size:16px;font-weight:bold;color:#4caf50;text-align:center}
+#liste .coin{cursor:pointer}
+.chart-panel{max-width:640px;margin:12px auto 0;padding:12px;background:#1e1e1e;border:1px solid #2c2c2c;border-radius:12px}
+.chart-kopf{display:flex;justify-content:space-between;align-items:center;font-weight:bold;font-size:15px;margin-bottom:8px}
+.chart-zu{background:none;border:none;color:#888;font-size:16px;cursor:pointer}
+.chart-zu:hover{color:#f44336}
+.chart-zeitrahmen{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.chart-zeitrahmen button{padding:5px 12px;border-radius:14px;border:1px solid #333;background:#121212;color:#999;font-size:13px;font-weight:bold;cursor:pointer}
+.chart-zeitrahmen button.aktiv{background:#2962ff;border-color:#2962ff;color:#fff}
+.chart-indikatoren{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:13px;color:#ccc}
+.chart-indikatoren label{display:flex;align-items:center;gap:5px;cursor:pointer}
+.chart-hinweis{font-size:12px;color:#888;margin-top:8px;text-align:center}
+.chart-sub-titel{font-size:12px;color:#999;margin:8px 0 2px;font-weight:bold}
+.chart-live{font-size:11px;font-weight:normal;color:#888;margin-left:8px}
+.chart-live.an{color:#4caf50}
+.signal-box{margin-top:10px;padding:10px 12px;background:#181818;border:1px solid #2c2c2c;border-radius:10px;font-size:13px}
+.signal-titel{font-weight:bold;color:#ccc;margin-bottom:6px}
+.signal-regel{color:#888;margin:2px 0}
+.signal-regel.ok{color:#4caf50}
+.signal-fazit{margin-top:8px;font-weight:bold;color:#ccc}
+.signal-fazit.up{color:#4caf50}
+.signal-hinweis{margin-top:6px;color:#777;font-size:11px}
+.chart-btns{display:flex;gap:4px;align-items:center}
+.chart-panel.voll{position:fixed;inset:0;z-index:1000;max-width:none;margin:0;border:none;border-radius:0;overflow:auto}
+.chart-panel.voll #chart-container{height:calc(100vh - 190px)}
+.demo-kopf{max-width:640px;margin:12px auto 0;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;background:#1e1e1e;border:1px solid #2c2c2c;border-radius:12px}
+.demo-kopf>div{display:flex;flex-direction:column}
+.demo-label{font-size:12px;color:#888}
+.demo-wert{font-size:16px;font-weight:bold}
+.rechner-zeile button{padding:9px 14px;border-radius:10px;border:none;background:#2962ff;color:#fff;font-weight:bold;cursor:pointer}
+.rechner-zeile button.grau{background:#333}
+.demo-pos{display:flex;align-items:center;gap:12px;background:#1e1e1e;border:1px solid #2c2c2c;border-radius:12px;padding:12px 14px;margin-bottom:8px}
+.tf-btn.aktiv{background:#2962ff;color:#fff}
+.demo-alarm{max-width:640px;margin:12px auto 0;padding:12px 14px;border:2px solid #ff9800;border-radius:12px;background:#241d10;color:#ffcc80;font-size:14px;line-height:1.5}
+.chart-trade{margin:8px 0;padding:8px;background:#181818;border:1px solid #2c2c2c;border-radius:10px}
+.chart-trade-zeile{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chart-trade-zeile input{width:90px;padding:8px 10px;border-radius:8px;border:1px solid #333;background:#121212;color:#eee;font-size:14px}
+.chart-trade-zeile button{padding:8px 12px;border-radius:8px;border:none;background:#2962ff;color:#fff;font-weight:bold;cursor:pointer}
+.chart-trade-zeile button.grau{background:#333}
+.chart-trade-info{font-size:12px;color:#aaa;margin-top:5px}
+</style>
+</head>
+<body>
+<header>
+<h1>📊 Marktblick</h1>
+<div class="sub">Kurse in Echtzeit</div>
+</header>
+<div class="tabs">
+<button class="tab-btn active" id="tab-krypto" onclick="wechsleTab('krypto')">🪙 Krypto</button>
+<button class="tab-btn" id="tab-aktien" onclick="wechsleTab('aktien')">📈 Aktien</button>
+<button class="tab-btn" id="tab-rohstoffe" onclick="wechsleTab('rohstoffe')">🌾 Rohstoffe</button>
+<button class="tab-btn" id="tab-demo" onclick="wechsleTab('demo')">🎮 Demo</button>
+</div>
+<div id="ansicht-krypto">
+<div class="suche">
+<input type="text" id="such-eingabe" placeholder="Coin hinzufügen (z.B. Polkadot)" onkeypress="if(event.key==='Enter')coinHinzufuegen()">
+<button onclick="coinHinzufuegen()">➕ Hinzufügen</button>
+</div>
+<div class="such-hinweis" id="such-status"></div>
+<div class="such-hinweis">👆 Tippe auf einen Coin für den Kerzenchart.</div>
+<div class="chart-panel" id="chart-panel" style="display:none">
+<div class="chart-kopf"><span><span id="chart-titel">—</span><span class="chart-live" id="chart-live">–</span></span><span class="chart-btns"><button class="chart-zu" id="chart-voll-btn" onclick="chartVollbild()" title="Vollbild">⛶</button><button class="chart-zu" onclick="chartSchliessen()" title="Schließen">✕</button></span></div>
+<div class="chart-zeitrahmen">
+<button data-tf="1m" onclick="chartZeitrahmen('1m')">1m</button>
+<button data-tf="3m" onclick="chartZeitrahmen('3m')">3m</button>
+<button data-tf="5m" onclick="chartZeitrahmen('5m')">5m</button>
+<button data-tf="15m" onclick="chartZeitrahmen('15m')">15m</button>
+<button data-tf="1h" class="aktiv" onclick="chartZeitrahmen('1h')">1h</button>
+<button data-tf="4h" onclick="chartZeitrahmen('4h')">4h</button>
+<button data-tf="1d" onclick="chartZeitrahmen('1d')">1T</button>
+<button data-tf="1w" onclick="chartZeitrahmen('1w')">1W</button>
+</div>
+<div class="chart-trade" id="chart-trade">
+<div class="chart-trade-zeile">
+<input type="number" id="chart-kauf-betrag" placeholder="€" value="500">
+<button onclick="chartKaufen()">🟢 Kaufen</button>
+<input type="number" id="chart-verkauf-menge" placeholder="Menge" step="any">
+<button class="grau" onclick="chartVerkaufenAlles()">Alles</button>
+<button onclick="chartVerkaufen()">🔴 Verkaufen</button>
+</div>
+<div class="chart-trade-info" id="chart-trade-bestand"></div>
+<div class="chart-trade-info" id="chart-trade-info" style="color:#4caf50"></div>
+<div style="font-size:11px;color:#777">Demo-Spielgeld · Kauf/Verkauf zum €-Kurs, mit deinen Demo-Gebühren.</div>
+</div>
+<div id="chart-container" style="height:320px"></div>
+<div class="chart-sub-titel" id="titel-rsi" style="display:none">RSI (14)</div>
+<div id="pane-rsi" style="height:120px;display:none"></div>
+<div class="chart-sub-titel" id="titel-macd" style="display:none">MACD (12, 26, 9)</div>
+<div id="pane-macd" style="height:120px;display:none"></div>
+<div class="chart-indikatoren">
+<label><input type="checkbox" id="ind-sma20" onchange="chartIndikatorenAktualisieren()"> SMA 20</label>
+<label><input type="checkbox" id="ind-sma50" onchange="chartIndikatorenAktualisieren()"> SMA 50</label>
+<label><input type="checkbox" id="ind-ema20" onchange="chartIndikatorenAktualisieren()"> EMA 20</label>
+<label><input type="checkbox" id="ind-bb" onchange="chartIndikatorenAktualisieren()"> Bollinger</label>
+<label><input type="checkbox" id="ind-vol" onchange="chartIndikatorenAktualisieren()"> Volumen</label>
+<label><input type="checkbox" id="ind-rsi" onchange="chartSubUpdate()"> RSI 14</label>
+<label><input type="checkbox" id="ind-macd" onchange="chartSubUpdate()"> MACD</label>
+</div>
+<div class="chart-hinweis">Mausrad über dem Chart = zoomen · ziehen = verschieben</div>
+<div class="chart-hinweis" id="chart-hinweis"></div>
+<div class="signal-box" id="signal-box" style="display:none">
+<div class="signal-titel">🎯 Einstiegs-Check (mechanische Regeln)</div>
+<div id="signal-regeln"></div>
+<div class="signal-fazit" id="signal-fazit"></div>
+<div class="signal-hinweis">Nur eine automatische Regelauswertung auf Basis des gewählten Zeitrahmens – keine Kaufempfehlung und keine Anlageberatung.</div>
+</div>
+</div>
+<div class="rechner">
+<div class="rechner-titel" id="titel-kr1" onclick="rechnerUmschalten('kr1')"><span class="rechner-pfeil" id="pfeil-kr1">▾</span>💶 Rechner: Wie viel bekomme ich für mein Geld?</div>
+<div class="rechner-body" id="body-kr1">
+<div class="rechner-zeile">
+<input type="number" id="rechner-betrag" placeholder="Euro" value="50" oninput="berechne()">
+<span>€ für</span>
+<select id="rechner-coin" onchange="berechne()"></select>
+</div>
+<div class="rechner-ergebnis" id="rechner-ergebnis"></div>
+</div>
+</div>
+<div class="rechner">
+<div class="rechner-titel" id="titel-kr2" onclick="rechnerUmschalten('kr2')"><span class="rechner-pfeil" id="pfeil-kr2">▾</span>📦 Was sind meine Anteile aktuell wert?</div>
+<div class="rechner-body" id="body-kr2">
+<div class="rechner-zeile">
+<input type="number" id="rechner2-menge" placeholder="Menge" step="any" oninput="berechne2()">
+<select id="rechner2-coin" onchange="berechne2()"></select>
+</div>
+<div class="rechner-ergebnis" id="rechner2-ergebnis"></div>
+</div>
+</div>
+<div id="status">⏳ Lade Kurse...</div>
+<div id="liste"></div>
+<button class="refresh-btn" onclick="ladeKurse()">🔄 Aktualisieren</button>
+</div>
+<div id="ansicht-aktien" style="display:none">
+<div class="suche">
+<input type="text" id="aktien-such-eingabe" placeholder="Aktie hinzufügen (z.B. Adidas oder ADS)" onkeypress="if(event.key==='Enter')aktieHinzufuegen()">
+<button onclick="aktieHinzufuegen()">➕ Hinzufügen</button>
+</div>
+<div class="such-hinweis" id="aktien-such-status"></div>
+<div class="rechner">
+<div class="rechner-titel" id="titel-ak1" onclick="rechnerUmschalten('ak1')"><span class="rechner-pfeil" id="pfeil-ak1">▾</span>💵 Wie viele Aktien bekomme ich für mein Geld?</div>
+<div class="rechner-body" id="body-ak1">
+<div class="rechner-zeile">
+<input type="number" id="aktien-rechner-betrag" placeholder="Dollar" value="1000" oninput="aktieBerechne()">
+<span>$ für</span>
+<select id="aktien-rechner-coin" onchange="aktieBerechne()"></select>
+</div>
+<div class="rechner-ergebnis" id="aktien-rechner-ergebnis"></div>
+</div>
+</div>
+<div class="rechner">
+<div class="rechner-titel" id="titel-ak2" onclick="rechnerUmschalten('ak2')"><span class="rechner-pfeil" id="pfeil-ak2">▾</span>📦 Was sind meine Aktien aktuell wert?</div>
+<div class="rechner-body" id="body-ak2">
+<div class="rechner-zeile">
+<input type="number" id="aktien-rechner2-menge" placeholder="Stück" step="any" oninput="aktieBerechne2()">
+<select id="aktien-rechner2-coin" onchange="aktieBerechne2()"></select>
+</div>
+<div class="rechner-ergebnis" id="aktien-rechner2-ergebnis"></div>
+</div>
+</div>
+<div id="aktien-status" style="text-align:center;padding:8px;font-size:13px;color:#888">⏳ Lade Aktienkurse...</div>
+<div id="aktien-liste" style="max-width:640px;margin:0 auto;padding:10px"></div>
+<div class="rechner" style="max-width:640px">
+<div class="rechner-titel">📰 Markt-News</div>
+<div id="news-liste" style="font-size:14px;color:#ccc">⏳ Lade Nachrichten...</div>
+</div>
+</div>
+<div id="ansicht-rohstoffe" style="display:none">
+<div class="such-hinweis">ℹ️ Begrenztes Gratis-Kontingent – bitte nicht zu oft aktualisieren (max. ca. 4x am Tag). Weizen/Zucker/Mais/Kupfer sind Monatswerte, Gold/Silber sind aktuell.</div>
+<div id="rohstoffe-status" style="text-align:center;padding:8px;font-size:13px;color:#888">Noch nicht geladen.</div>
+<div id="rohstoffe-liste" style="max-width:640px;margin:0 auto;padding:10px"></div>
+<button class="refresh-btn" onclick="ladeRohstoffe()">🔄 Rohstoffe laden</button>
+</div>
+<div id="ansicht-demo" style="display:none">
+<div class="such-hinweis">🎮 Übungskonto mit Spielgeld – keine echten Käufe. Kurse laufen live aus dem Krypto-Tab (in €).</div>
+<div id="demo-alarm" class="demo-alarm" style="display:none"></div>
+<div class="demo-kopf">
+<div><span class="demo-label">Handelsgeld</span><span class="demo-wert" id="demo-bar">–</span></div>
+<div><span class="demo-label">🔒 Tresor</span><span class="demo-wert" id="demo-tresor">–</span></div>
+<div><span class="demo-label">Positionen</span><span class="demo-wert" id="demo-posval">–</span></div>
+<div><span class="demo-label">Gesamtwert</span><span class="demo-wert" id="demo-gesamt">–</span></div>
+<div><span class="demo-label">Gewinn/Verlust</span><span class="demo-wert" id="demo-gv">–</span></div>
+</div>
+<div class="rechner">
+<div class="rechner-titel">🔒 Tresor &amp; Auto-Verkauf</div>
+<div class="rechner-zeile">
+<span>Handelsgeld-Ziel</span><input type="number" id="demo-handelsziel" step="100" min="0" style="width:90px"><span>€</span>
+<button onclick="demoTresorEinstellungen()">Übernehmen</button>
+</div>
+<div class="rechner-zeile" style="font-size:13px">
+<label><input type="checkbox" id="demo-autosichern" onchange="demoTresorEinstellungen()"> Gewinn über dem Ziel automatisch in den Tresor</label>
+</div>
+<div class="rechner-zeile" style="font-size:13px">
+<label><input type="checkbox" id="demo-autostop" onchange="demoTresorEinstellungen()"> Auto-Verkauf bei Zielgewinn / Stop-Loss</label>
+</div>
+<div class="rechner-zeile">
+<input type="number" id="demo-tresor-betrag" placeholder="€" step="any" style="width:90px">
+<button class="grau" onclick="demoTresorRein()">→ Tresor</button>
+<button class="grau" onclick="demoTresorRaus()">← zurück</button>
+</div>
+<div class="signal-hinweis">Der Tresor liegt fest und wird nicht mitgespielt. So bleibt dein Einsatz gleich groß, auch nach guten Gewinnen. Der Auto-Verkauf handelt selbst, sobald eine Position dein +% / −% erreicht.</div>
+</div>
+<div class="rechner">
+<div class="rechner-titel">⚙️ Gebühren-Simulation</div>
+<div class="rechner-zeile">
+<input type="number" id="demo-gebuehr" step="0.05" min="0" style="width:70px"><span>%</span>
+<input type="number" id="demo-gebuehr-min" step="0.1" min="0" style="width:70px"><span>€ Mindestgebühr</span>
+<button onclick="demoGebuehrSpeichern()">Übernehmen</button>
+</div>
+<div class="rechner-ergebnis" id="demo-gebuehr-info" style="color:#888;font-weight:normal;font-size:12px;text-align:left"></div>
+</div>
+<div class="rechner">
+<div class="rechner-titel">🟢 Kaufen</div>
+<div class="rechner-zeile">
+<select id="demo-kauf-coin" onchange="demoKaufVorschau()"></select>
+<input type="number" id="demo-kauf-betrag" placeholder="€" value="1000" oninput="demoKaufVorschau()">
+<button onclick="demoKaufen()">Kaufen</button>
+</div>
+<div class="rechner-ergebnis" id="demo-kauf-info"></div>
+</div>
+<div class="rechner">
+<div class="rechner-titel">🔴 Verkaufen</div>
+<div class="rechner-zeile">
+<select id="demo-verkauf-coin"></select>
+<input type="number" id="demo-verkauf-menge" placeholder="Menge" step="any">
+<button class="grau" onclick="demoMengeAlles()">Alles</button>
+<button onclick="demoVerkaufen()">Verkaufen</button>
+</div>
+<div class="rechner-ergebnis" id="demo-verkauf-info"></div>
+</div>
+<div class="rechner">
+<div class="rechner-titel">📣 Signale (mechanische Regeln)</div>
+<div class="rechner-zeile" style="gap:6px">
+<span>Zeitrahmen:</span>
+<button class="grau tf-btn" data-stf="1m" onclick="demoSignalTf('1m')">1m</button>
+<button class="grau tf-btn" data-stf="5m" onclick="demoSignalTf('5m')">5m</button>
+<button class="grau tf-btn" data-stf="15m" onclick="demoSignalTf('15m')">15m</button>
+<button class="grau tf-btn" data-stf="1h" onclick="demoSignalTf('1h')">1h</button>
+</div>
+<div class="rechner-zeile">
+<span>Zielgewinn</span><input type="number" id="demo-ziel" step="0.5" min="0" style="width:60px"><span>%</span>
+<span>· Stop-Loss</span><input type="number" id="demo-stop" step="0.5" min="0" style="width:60px"><span>%</span>
+<button onclick="demoZieleSpeichern()">Übernehmen</button>
+</div>
+<div class="rechner-zeile" style="font-size:12px;color:#888">
+Vorlagen: <a href="#" onclick="demoPreset(2,1);return false" style="color:#2962ff">Scalping 2 / 1 %</a> ·
+<a href="#" onclick="demoPreset(5,2.5);return false" style="color:#2962ff">kurz 5 / 2,5 %</a> ·
+<a href="#" onclick="demoPreset(20,10);return false" style="color:#2962ff">ruhig 20 / 10 %</a>
+</div>
+<div class="rechner-zeile" style="justify-content:space-between">
+<button class="grau" onclick="demoMarktSignale()">🔄 Jetzt prüfen</button>
+<label style="font-size:13px"><input type="checkbox" id="demo-alarm-an" onchange="demoAlarmUmschalten()"> 🔔 Auto-Alarm (alle 30 Sek.)</label>
+</div>
+<div class="rechner-ergebnis" id="demo-signale" style="text-align:left;font-weight:normal;color:#ccc;font-size:13px;line-height:1.5"></div>
+<div class="signal-hinweis">Prüft die Kerzendaten (RSI, Durchschnitte, jüngstes Hoch/Tief) plus deinen Zielgewinn/Stop-Loss. Automatische Regelauswertung – keine Kaufempfehlung, keine Anlageberatung.</div>
+</div>
+<div id="demo-status" class="such-hinweis"></div>
+<div id="demo-positionen" style="max-width:640px;margin:0 auto;padding:10px"></div>
+<div class="rechner" style="max-width:640px">
+<div class="rechner-titel">📈 Gewinn/Verlust-Verlauf</div>
+<div class="rechner-zeile" style="justify-content:space-around;text-align:center;font-size:13px">
+<div>Realisiert<br><b id="demo-realisiert">–</b></div>
+<div>Offen (Positionen)<br><b id="demo-unreal">–</b></div>
+<div>Gesamt<br><b id="demo-gv-chart">–</b></div>
+</div>
+<div id="demo-chart" style="height:200px;margin-top:8px"></div>
+<div class="chart-hinweis">Linie über 10.000 € = im Plus (grün), darunter = im Minus (rot). „Realisiert" = bei Verkäufen festgemachter Gewinn/Verlust, „Offen" = aktueller Buchgewinn/-verlust der noch gehaltenen Coins.</div>
+</div>
+<div class="rechner" style="max-width:640px">
+<div class="rechner-titel">📜 Verlauf</div>
+<div id="demo-verlauf" style="font-size:13px;color:#ccc">Noch keine Trades.</div>
+</div>
+<button class="refresh-btn" onclick="demoZuruecksetzen()">↺ Depot auf 10.000 € zurücksetzen</button>
+</div>
+
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<script>
+function wechsleTab(tab){
+  document.getElementById('tab-krypto').classList.toggle('active',tab==='krypto');
+  document.getElementById('tab-aktien').classList.toggle('active',tab==='aktien');
+  document.getElementById('tab-rohstoffe').classList.toggle('active',tab==='rohstoffe');
+  document.getElementById('tab-demo').classList.toggle('active',tab==='demo');
+  document.getElementById('ansicht-krypto').style.display=tab==='krypto'?'block':'none';
+  document.getElementById('ansicht-aktien').style.display=tab==='aktien'?'block':'none';
+  document.getElementById('ansicht-rohstoffe').style.display=tab==='rohstoffe'?'block':'none';
+  document.getElementById('ansicht-demo').style.display=tab==='demo'?'block':'none';
+  if(tab==='demo'){demoFormulareAufbauen();demoWerteAktualisieren();demoAlarmPruefen();}
+}
+function rechnerZustand(){var d=localStorage.getItem('mb_rechner_zu');return d?JSON.parse(d):{};}
+function wendeRechnerZustandAn(id){
+  var zu=!!rechnerZustand()[id];
+  var body=document.getElementById('body-'+id);
+  var titel=document.getElementById('titel-'+id);
+  var pfeil=document.getElementById('pfeil-'+id);
+  if(body)body.classList.toggle('zu',zu);
+  if(titel)titel.classList.toggle('zu',zu);
+  if(pfeil)pfeil.textContent=zu?'▸':'▾';
+}
+function rechnerUmschalten(id){
+  var z=rechnerZustand();
+  z[id]=!z[id];
+  localStorage.setItem('mb_rechner_zu',JSON.stringify(z));
+  wendeRechnerZustandAn(id);
+}
+['kr1','kr2','ak1','ak2'].forEach(wendeRechnerZustandAn);
+
+function getEigeneCoins(){var d=localStorage.getItem('mb_eigene_coins');return d?JSON.parse(d):[];}
+function speichereEigeneCoins(a){localStorage.setItem('mb_eigene_coins',JSON.stringify(a));}
+
+async function coinHinzufuegen(){
+  var eingabe=document.getElementById('such-eingabe').value.trim();
+  var statusEl=document.getElementById('such-status');
+  if(!eingabe)return;
+  statusEl.innerText='🔍 Suche...';
+  try{
+    const res=await fetch('https://api.coingecko.com/api/v3/search?query='+encodeURIComponent(eingabe));
+    const daten=await res.json();
+    if(!daten.coins||daten.coins.length===0){statusEl.innerText='❌ Keinen Coin mit diesem Namen gefunden.';return;}
+    var gefunden=daten.coins[0];
+    var eigene=getEigeneCoins();
+    if(eigene.includes(gefunden.id)){statusEl.innerText='ℹ️ '+gefunden.name+' ist schon in der Liste.';return;}
+    eigene.push(gefunden.id);
+    speichereEigeneCoins(eigene);
+    document.getElementById('such-eingabe').value='';
+    statusEl.innerText='✅ '+gefunden.name+' hinzugefügt.';
+    ladeKurse();
+  }catch(e){
+    statusEl.innerText='⚠️ Suche gerade nicht möglich.';
+  }
+}
+
+function coinEntfernen(id){
+  var eigene=getEigeneCoins().filter(function(x){return x!==id;});
+  speichereEigeneCoins(eigene);
+  ladeKurse();
+}
+
+var aktuelleCoins=[];
+function fuelleAuswahl(auswahl){
+  var vorherAusgewaehlt=auswahl.value;
+  auswahl.innerHTML=aktuelleCoins.map(function(c){return '<option value="'+c.id+'">'+c.name+' ('+c.symbol.toUpperCase()+')</option>';}).join('');
+  if(vorherAusgewaehlt&&aktuelleCoins.some(function(c){return c.id===vorherAusgewaehlt;})){
+    auswahl.value=vorherAusgewaehlt;
+  }
+}
+function fuelleRechnerDropdown(){
+  fuelleAuswahl(document.getElementById('rechner-coin'));
+  fuelleAuswahl(document.getElementById('rechner2-coin'));
+}
+function berechne(){
+  var betrag=parseFloat(document.getElementById('rechner-betrag').value);
+  var coinId=document.getElementById('rechner-coin').value;
+  var ergebnisEl=document.getElementById('rechner-ergebnis');
+  var coin=aktuelleCoins.find(function(c){return c.id===coinId;});
+  if(!coin||!betrag||betrag<=0){ergebnisEl.innerText='';return;}
+  var menge=betrag/coin.current_price;
+  var mengeText=menge.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:menge<1?8:4});
+  ergebnisEl.innerText='= '+mengeText+' '+coin.symbol.toUpperCase();
+}
+function berechne2(){
+  var menge=parseFloat(document.getElementById('rechner2-menge').value);
+  var coinId=document.getElementById('rechner2-coin').value;
+  var ergebnisEl=document.getElementById('rechner2-ergebnis');
+  var coin=aktuelleCoins.find(function(c){return c.id===coinId;});
+  if(!coin||!menge||menge<=0){ergebnisEl.innerText='';return;}
+  var wert=menge*coin.current_price;
+  var wertText=wert.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
+  ergebnisEl.innerText='= '+wertText+' €';
+}
+
+function formatiereAenderung(change){
+  var changeText=(change===null||change===undefined)?'–':(change>=0?'▲ +':'▼ ')+Math.abs(change).toFixed(2)+'%';
+  var changeClass=change>=0?'up':'down';
+  return {text:changeText,klasse:changeClass};
+}
+function formatierePreis(preis){
+  return preis.toLocaleString('de-DE',{minimumFractionDigits:preis<1?4:2,maximumFractionDigits:preis<1?6:2});
+}
+function aktualisiereZeile(coin){
+  var preisEl=document.getElementById('preis-'+coin.id);
+  var changeEl=document.getElementById('change-'+coin.id);
+  if(preisEl)preisEl.innerText=formatierePreis(coin.current_price)+' €';
+  if(changeEl){
+    var a=formatiereAenderung(coin.price_change_percentage_24h);
+    changeEl.innerText=a.text;
+    changeEl.className='change '+a.klasse;
+  }
+}
+
+async function ladeKurse(){
+  document.getElementById('status').innerText='⏳ Lade Kurse...';
+  try{
+    const topUrl='https://api.coingecko.com/api/v3/coins/markets?vs_currency=eur&order=market_cap_desc&per_page=20&page=1&sparkline=false&price_change_percentage=24h';
+    const topRes=await fetch(topUrl);
+    if(!topRes.ok)throw new Error('API-Fehler');
+    let coins=await topRes.json();
+
+    var eigene=getEigeneCoins();
+    var vorhandeneIds=coins.map(function(c){return c.id;});
+    var fehlendeEigene=eigene.filter(function(id){return !vorhandeneIds.includes(id);});
+    if(fehlendeEigene.length>0){
+      const eigeneUrl='https://api.coingecko.com/api/v3/coins/markets?vs_currency=eur&ids='+fehlendeEigene.join(',')+'&sparkline=false&price_change_percentage=24h';
+      const eigeneRes=await fetch(eigeneUrl);
+      if(eigeneRes.ok){
+        var eigeneCoins=await eigeneRes.json();
+        coins=coins.concat(eigeneCoins);
+      }
+    }
+
+    // Bitcoin immer nach oben, Rest bleibt nach Marktkapitalisierung sortiert
+    coins.sort((a,b)=>{
+      if(a.id==='bitcoin')return -1;
+      if(b.id==='bitcoin')return 1;
+      return b.market_cap-a.market_cap;
+    });
+    var html='';
+    coins.forEach(c=>{
+      var a=formatiereAenderung(c.price_change_percentage_24h);
+      var preis=formatierePreis(c.current_price);
+      var istEigen=eigene.includes(c.id);
+      html+='<div class="coin'+(c.id==='bitcoin'?' btc':'')+'" id="row-'+c.id+'" onclick="coinRowKlick(\''+c.symbol.toUpperCase()+'\')">'
+        +'<img src="'+c.image+'" alt="'+c.symbol+'">'
+        +'<div class="coin-info"><div class="coin-name">'+c.name+'</div><div class="coin-symbol">'+c.symbol+'</div></div>'
+        +'<div class="coin-price"><div class="price" id="preis-'+c.id+'">'+preis+' €</div><div class="change '+a.klasse+'" id="change-'+c.id+'">'+a.text+'</div></div>'
+        +(istEigen?'<button class="entfernen-btn" onclick="event.stopPropagation();coinEntfernen(\''+c.id+'\')" title="Entfernen">✕</button>':'')
+        +'</div>';
+    });
+    document.getElementById('liste').innerHTML=html;
+    aktuelleCoins=coins;
+    fuelleRechnerDropdown();
+    berechne();
+    berechne2();
+    if(document.getElementById('ansicht-demo').style.display!=='none')demoFormulareAufbauen();
+    demoWerteAktualisieren();
+    var jetzt=new Date().toLocaleTimeString('de-DE');
+    document.getElementById('status').innerText='✅ Zuletzt aktualisiert: '+jetzt;
+    await holeEurUsdRate();
+    var liveKandidaten=coins.filter(function(c){return !eigene.includes(c.id);});
+    starteLiveTicker(liveKandidaten);
+  }catch(e){
+    document.getElementById('status').innerText='⚠️ Kurse konnten nicht geladen werden. Bitte später erneut versuchen.';
+  }
+}
+
+var eurUsdRate=1;
+async function holeEurUsdRate(){
+  try{
+    const res=await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=eur,usd');
+    const d=await res.json();
+    if(d.bitcoin&&d.bitcoin.usd)eurUsdRate=d.bitcoin.eur/d.bitcoin.usd;
+  }catch(e){}
+}
+
+var liveSocket=null;
+var letzteLiveKandidaten=[];
+function starteLiveTicker(liveKandidaten){
+  letzteLiveKandidaten=liveKandidaten;
+  if(liveSocket){try{liveSocket.close();}catch(e){}liveSocket=null;}
+  var symbole=liveKandidaten.map(function(c){return c.symbol.toLowerCase()+'usdt';});
+  symbole=symbole.filter(function(s,i){return s!=='usdtusdt'&&symbole.indexOf(s)===i;});
+  if(symbole.length===0)return;
+  var streams=symbole.map(function(s){return s+'@ticker';}).join('/');
+  try{
+    liveSocket=new WebSocket('wss://stream.binance.com:9443/stream?streams='+streams);
+    liveSocket.onopen=function(){
+      document.getElementById('status').innerHTML='🟢 <span class="live-status">Live verbunden</span>';
+    };
+    liveSocket.onmessage=function(ev){
+      try{
+        var msg=JSON.parse(ev.data);
+        var d=msg.data;
+        if(!d||!d.s)return;
+        var coinSymbol=d.s.toLowerCase().replace('usdt','');
+        var coin=aktuelleCoins.find(function(c){return c.symbol.toLowerCase()===coinSymbol;});
+        if(!coin)return;
+        coin.current_price=parseFloat(d.c)*eurUsdRate;
+        coin.price_change_percentage_24h=parseFloat(d.P);
+        aktualisiereZeile(coin);
+        berechne();
+        berechne2();
+        demoWerteAktualisieren();
+        demoChartTradeLeiste();
+      }catch(e){}
+    };
+    liveSocket.onerror=function(){};
+    liveSocket.onclose=function(){
+      document.getElementById('status').innerText='⚠️ Live-Verbindung getrennt, versuche erneut...';
+      setTimeout(function(){starteLiveTicker(letzteLiveKandidaten);},5000);
+    };
+  }catch(e){}
+}
+
+ladeKurse();
+setInterval(ladeKurse,60000);
+
+// --- Aktien ---
+var FINNHUB_KEY='da7nfjpr01qj8fm7nmr0da7nfjpr01qj8fm7nmrg';
+var aktienListe=[
+  {symbol:'AAPL',name:'Apple'},
+  {symbol:'TSLA',name:'Tesla'},
+  {symbol:'MSFT',name:'Microsoft'},
+  {symbol:'AMZN',name:'Amazon'},
+  {symbol:'GOOGL',name:'Alphabet (Google)'},
+  {symbol:'NVDA',name:'Nvidia'},
+  {symbol:'META',name:'Meta'},
+  {symbol:'NFLX',name:'Netflix'},
+  {symbol:'AMD',name:'AMD'},
+  {symbol:'KO',name:'Coca-Cola'},
+  {symbol:'DIS',name:'Walt Disney'},
+  {symbol:'PYPL',name:'PayPal'},
+  {symbol:'V',name:'Visa'}
+];
+var aktienDaten={};
+
+function getEigeneAktien(){var d=localStorage.getItem('mb_eigene_aktien');return d?JSON.parse(d):[];}
+function speichereEigeneAktien(a){localStorage.setItem('mb_eigene_aktien',JSON.stringify(a));}
+
+var aktuelleAktien=[];
+function fuelleAktienDropdown(){
+  var opts=aktuelleAktien.map(function(a){return '<option value="'+a.symbol+'">'+a.name+' ('+a.symbol+')</option>';}).join('');
+  ['aktien-rechner-coin','aktien-rechner2-coin'].forEach(function(selId){
+    var sel=document.getElementById(selId);
+    if(!sel)return;
+    var vorher=sel.value;
+    sel.innerHTML=opts;
+    if(vorher&&aktuelleAktien.some(function(a){return a.symbol===vorher;}))sel.value=vorher;
+  });
+}
+function aktieBerechne(){
+  var betrag=parseFloat(document.getElementById('aktien-rechner-betrag').value);
+  var sym=document.getElementById('aktien-rechner-coin').value;
+  var el=document.getElementById('aktien-rechner-ergebnis');
+  var d=aktienDaten[sym];
+  if(!d||!d.price||!betrag||betrag<=0){el.innerText='';return;}
+  var menge=betrag/d.price;
+  el.innerText='= '+menge.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:menge<1?6:4})+' Stück';
+}
+function aktieBerechne2(){
+  var menge=parseFloat(document.getElementById('aktien-rechner2-menge').value);
+  var sym=document.getElementById('aktien-rechner2-coin').value;
+  var el=document.getElementById('aktien-rechner2-ergebnis');
+  var d=aktienDaten[sym];
+  if(!d||!d.price||!menge||menge<=0){el.innerText='';return;}
+  var wert=menge*d.price;
+  el.innerText='= '+wert.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' $';
+}
+
+async function aktieHinzufuegen(){
+  var eingabe=document.getElementById('aktien-such-eingabe').value.trim();
+  var statusEl=document.getElementById('aktien-such-status');
+  if(!eingabe)return;
+  statusEl.innerText='🔍 Suche...';
+  try{
+    const res=await fetch('https://finnhub.io/api/v1/search?q='+encodeURIComponent(eingabe)+'&token='+FINNHUB_KEY);
+    const daten=await res.json();
+    var treffer=(daten.result||[]).find(function(r){return r.type==='Common Stock';})||(daten.result||[])[0];
+    if(!treffer){statusEl.innerText='❌ Keine Aktie mit diesem Namen gefunden.';return;}
+    var eigene=getEigeneAktien();
+    var schonDa=aktienListe.some(function(a){return a.symbol===treffer.symbol;})||eigene.some(function(a){return a.symbol===treffer.symbol;});
+    if(schonDa){statusEl.innerText='ℹ️ '+treffer.description+' ist schon in der Liste.';return;}
+    eigene.push({symbol:treffer.symbol,name:treffer.description});
+    speichereEigeneAktien(eigene);
+    document.getElementById('aktien-such-eingabe').value='';
+    statusEl.innerText='✅ '+treffer.description+' hinzugefügt.';
+    ladeAktien();
+  }catch(e){
+    statusEl.innerText='⚠️ Suche gerade nicht möglich.';
+  }
+}
+
+function aktieEntfernen(symbol){
+  var eigene=getEigeneAktien().filter(function(a){return a.symbol!==symbol;});
+  speichereEigeneAktien(eigene);
+  ladeAktien();
+}
+
+function aktualisiereAktienZeile(symbol){
+  var d=aktienDaten[symbol];
+  if(!d)return;
+  var preisEl=document.getElementById('apreis-'+symbol);
+  var changeEl=document.getElementById('achange-'+symbol);
+  var change=d.previousClose?((d.price-d.previousClose)/d.previousClose*100):null;
+  if(preisEl)preisEl.innerText=formatierePreis(d.price)+' $';
+  if(changeEl){
+    var a=formatiereAenderung(change);
+    changeEl.innerText=a.text;
+    changeEl.className='change '+a.klasse;
+  }
+}
+
+async function ladeAktien(){
+  document.getElementById('aktien-status').innerText='⏳ Lade Aktienkurse...';
+  try{
+    var eigene=getEigeneAktien();
+    var alleAktien=aktienListe.concat(eigene);
+    var html='';
+    for(var i=0;i<alleAktien.length;i++){
+      var aktie=alleAktien[i];
+      var res=await fetch('https://finnhub.io/api/v1/quote?symbol='+aktie.symbol+'&token='+FINNHUB_KEY);
+      var d=await res.json();
+      aktienDaten[aktie.symbol]={price:d.c,previousClose:d.pc};
+      var change=d.pc?((d.c-d.pc)/d.pc*100):null;
+      var a=formatiereAenderung(change);
+      var istEigen=eigene.some(function(x){return x.symbol===aktie.symbol;});
+      html+='<div class="coin" id="arow-'+aktie.symbol+'">'
+        +'<div class="coin-info"><div class="coin-name">'+aktie.name+'</div><div class="coin-symbol">'+aktie.symbol+'</div></div>'
+        +'<div class="coin-price"><div class="price" id="apreis-'+aktie.symbol+'">'+formatierePreis(d.c)+' $</div><div class="change '+a.klasse+'" id="achange-'+aktie.symbol+'">'+a.text+'</div></div>'
+        +(istEigen?'<button class="entfernen-btn" onclick="aktieEntfernen(\''+aktie.symbol+'\')" title="Entfernen">✕</button>':'')
+        +'</div>';
+    }
+    document.getElementById('aktien-liste').innerHTML=html;
+    aktuelleAktien=alleAktien;
+    fuelleAktienDropdown();
+    aktieBerechne();
+    aktieBerechne2();
+    var jetzt=new Date().toLocaleTimeString('de-DE');
+    document.getElementById('aktien-status').innerText='✅ Zuletzt aktualisiert: '+jetzt;
+    starteAktienTicker(alleAktien);
+  }catch(e){
+    document.getElementById('aktien-status').innerText='⚠️ Aktienkurse konnten nicht geladen werden.';
+  }
+}
+
+var aktienSocket=null;
+var letzteAktien=[];
+function starteAktienTicker(alleAktien){
+  letzteAktien=alleAktien||letzteAktien;
+  if(aktienSocket){try{aktienSocket.close();}catch(e){}aktienSocket=null;}
+  try{
+    aktienSocket=new WebSocket('wss://ws.finnhub.io?token='+FINNHUB_KEY);
+    aktienSocket.onopen=function(){
+      letzteAktien.forEach(function(aktie){
+        aktienSocket.send(JSON.stringify({type:'subscribe',symbol:aktie.symbol}));
+      });
+      document.getElementById('aktien-status').innerHTML='🟢 <span class="live-status">Live verbunden</span>';
+    };
+    aktienSocket.onmessage=function(ev){
+      try{
+        var msg=JSON.parse(ev.data);
+        if(msg.type!=='trade'||!msg.data)return;
+        msg.data.forEach(function(t){
+          if(!aktienDaten[t.s])return;
+          aktienDaten[t.s].price=t.p;
+          aktualisiereAktienZeile(t.s);
+          aktieBerechne();
+          aktieBerechne2();
+        });
+      }catch(e){}
+    };
+    aktienSocket.onerror=function(){};
+    aktienSocket.onclose=function(){
+      document.getElementById('aktien-status').innerText='⚠️ Live-Verbindung getrennt, versuche erneut...';
+      setTimeout(starteAktienTicker,5000);
+    };
+  }catch(e){}
+}
+
+async function uebersetzeInsDeutsche(text){
+  try{
+    const res=await fetch('https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=de&dt=t&q='+encodeURIComponent(text));
+    const daten=await res.json();
+    return daten[0].map(function(teil){return teil[0];}).join('');
+  }catch(e){
+    return text;
+  }
+}
+
+async function ladeNews(){
+  var el=document.getElementById('news-liste');
+  try{
+    const res=await fetch('https://finnhub.io/api/v1/news?category=general&token='+FINNHUB_KEY);
+    const daten=await res.json();
+    var top=daten.slice(0,8);
+    var uebersetzt=await Promise.all(top.map(function(n){return uebersetzeInsDeutsche(n.headline);}));
+    var html='';
+    top.forEach(function(n,i){
+      html+='<div style="padding:9px 0;border-bottom:1px solid #2c2c2c">'
+        +'<a href="'+n.url+'" target="_blank" style="color:#eee;text-decoration:none;font-weight:bold;font-size:14px">'+uebersetzt[i]+'</a>'
+        +'<div style="color:#888;font-size:12px;margin-top:3px">'+n.source+'</div>'
+        +'</div>';
+    });
+    el.innerHTML=html||'Keine Nachrichten verfügbar.';
+  }catch(e){
+    el.innerText='⚠️ Nachrichten konnten nicht geladen werden.';
+  }
+}
+
+ladeAktien();
+ladeNews();
+setInterval(ladeNews,300000);
+
+// --- Rohstoffe ---
+var ALPHA_VANTAGE_KEY='K3GH1KZ51278IFMR';
+var rohstoffListe=[
+  {name:'Gold',einheit:'$ / Feinunze (aktuell)',art:'metall',code:'XAU'},
+  {name:'Silber',einheit:'$ / Feinunze (aktuell)',art:'metall',code:'XAG'},
+  {name:'Kupfer',einheit:'$ (Monat)',art:'rohstoff',funktion:'COPPER'},
+  {name:'Weizen',einheit:'$ pro Bushel (Monat)',art:'rohstoff',funktion:'WHEAT'},
+  {name:'Mais',einheit:'$ pro Bushel (Monat)',art:'rohstoff',funktion:'CORN'},
+  {name:'Zucker',einheit:'$ pro Pfund (Monat)',art:'rohstoff',funktion:'SUGAR'}
+];
+
+async function holeRohstoffWert(r){
+  if(r.art==='metall'){
+    const res=await fetch('https://api.gold-api.com/price/'+r.code);
+    const d=await res.json();
+    if(typeof d.price!=='number')return null;
+    var letzterKey='mb_rohstoff_letzter_'+r.code;
+    var letzterWert=parseFloat(localStorage.getItem(letzterKey));
+    var aenderung=(!isNaN(letzterWert)&&letzterWert>0)?((d.price-letzterWert)/letzterWert*100):null;
+    localStorage.setItem(letzterKey,d.price);
+    return {wert:d.price,aenderung:aenderung,label:'seit letztem Laden'};
+  }else{
+    const res=await fetch('https://www.alphavantage.co/query?function='+r.funktion+'&interval=monthly&apikey='+ALPHA_VANTAGE_KEY);
+    const d=await res.json();
+    if(!d.data||!d.data.length)return null;
+    var aktuell=parseFloat(d.data[0].value);
+    var vormonat=d.data.length>1?parseFloat(d.data[1].value):null;
+    var aenderung=vormonat?((aktuell-vormonat)/vormonat*100):null;
+    return {wert:aktuell,aenderung:aenderung,label:'vs. Vormonat'};
+  }
+}
+
+function warte(ms){return new Promise(function(resolve){setTimeout(resolve,ms);});}
+
+async function ladeRohstoffe(){
+  var statusEl=document.getElementById('rohstoffe-status');
+  var html='';
+  var ersteAlphaVantageAbfrage=true;
+  for(var i=0;i<rohstoffListe.length;i++){
+    var r=rohstoffListe[i];
+    if(r.art==='rohstoff'){
+      if(!ersteAlphaVantageAbfrage){
+        statusEl.innerText='⏳ Warte kurz wegen Tempo-Limit... ('+r.name+')';
+        await warte(15000);
+      }
+      ersteAlphaVantageAbfrage=false;
+    }
+    statusEl.innerText='⏳ Lade '+r.name+'...';
+    try{
+      var ergebnis=await holeRohstoffWert(r);
+      var preisHtml='– nicht verfügbar';
+      var changeHtml='';
+      if(ergebnis!==null){
+        preisHtml=ergebnis.wert.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
+        if(ergebnis.aenderung!==null){
+          var a=formatiereAenderung(ergebnis.aenderung);
+          changeHtml='<div class="change '+a.klasse+'">'+a.text+' <span style="color:#888;font-weight:normal">('+ergebnis.label+')</span></div>';
+        }
+      }
+      html+='<div class="coin">'
+        +'<div class="coin-info"><div class="coin-name">'+r.name+'</div><div class="coin-symbol">'+r.einheit+'</div></div>'
+        +'<div class="coin-price"><div class="price">'+preisHtml+'</div>'+changeHtml+'</div>'
+        +'</div>';
+    }catch(e){
+      html+='<div class="coin"><div class="coin-info"><div class="coin-name">'+r.name+'</div></div><div class="coin-price">⚠️ Fehler</div></div>';
+    }
+    document.getElementById('rohstoffe-liste').innerHTML=html;
+  }
+  var jetzt=new Date().toLocaleTimeString('de-DE');
+  statusEl.innerText='✅ Zuletzt geladen: '+jetzt;
+}
+
+// --- Krypto Kerzenchart (Schritt 1) ---
+var chartAktivesSymbol=null;
+var chartTf='1h';
+var chartObj=null,candleSeries=null,volumeSeries=null;
+var indSeries=[];
+var chartRohKerzen=[];
+
+function coinRowKlick(symbol){
+  var panel=document.getElementById('chart-panel');
+  if(chartAktivesSymbol===symbol&&panel.style.display!=='none'){chartSchliessen();return;}
+  chartOeffnen(symbol);
+}
+
+function chartSchliessen(){
+  var panel=document.getElementById('chart-panel');
+  panel.classList.remove('voll');
+  document.body.style.overflow='';
+  var vb=document.getElementById('chart-voll-btn');if(vb)vb.textContent='⛶';
+  panel.style.display='none';
+  chartAktivesSymbol=null;
+  chartLiveStop();
+}
+
+function chartVollbild(){
+  var panel=document.getElementById('chart-panel');
+  var voll=panel.classList.toggle('voll');
+  document.body.style.overflow=voll?'hidden':'';
+  document.getElementById('chart-voll-btn').textContent=voll?'🡼':'⛶';
+  if(chartObj){
+    setTimeout(function(){
+      chartObj.timeScale().fitContent();
+      if(typeof subAngleichen==='function')subAngleichen();
+    },80);
+  }
+}
+
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'&&document.getElementById('chart-panel').classList.contains('voll'))chartVollbild();
+});
+
+function chartOeffnen(symbol){
+  chartAktivesSymbol=symbol;
+  var panel=document.getElementById('chart-panel');
+  panel.style.display='block';
+  document.getElementById('chart-titel').textContent=symbol+' / USD';
+  var hinweisEl=document.getElementById('chart-hinweis');
+  if(typeof LightweightCharts==='undefined'){
+    hinweisEl.textContent='⚠️ Chart-Bibliothek nicht geladen (kein Internet?).';
+    return;
+  }
+  if(!chartObj){
+    chartObj=LightweightCharts.createChart(document.getElementById('chart-container'),{
+      autoSize:true,
+      layout:{background:{color:'#1e1e1e'},textColor:'#ccc',fontSize:14},
+      grid:{vertLines:{color:'#2c2c2c'},horzLines:{color:'#2c2c2c'}},
+      timeScale:{timeVisible:true,borderColor:'#333'},
+      rightPriceScale:{borderColor:'#333'},
+      crosshair:{mode:LightweightCharts.CrosshairMode.Normal}
+    });
+    candleSeries=chartObj.addCandlestickSeries({upColor:'#4caf50',downColor:'#f44336',wickUpColor:'#4caf50',wickDownColor:'#f44336',borderVisible:false});
+    chartObj.timeScale().subscribeVisibleLogicalRangeChange(macheSyncHandler(function(){return chartObj;}));
+  }
+  chartObj.applyOptions({width:document.getElementById('chart-container').clientWidth});
+  chartDatenLaden();
+  demoChartTradeLeiste();
+  panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function chartZeitrahmen(tf){
+  chartTf=tf;
+  Array.prototype.forEach.call(document.querySelectorAll('.chart-zeitrahmen button'),function(b){
+    b.classList.toggle('aktiv',b.getAttribute('data-tf')===tf);
+  });
+  chartDatenLaden();
+}
+
+async function chartDatenLaden(){
+  if(!chartAktivesSymbol||typeof LightweightCharts==='undefined')return;
+  chartLiveStop();
+  var hinweisEl=document.getElementById('chart-hinweis');
+  hinweisEl.textContent='⏳ Lade Chart...';
+  var pair=chartAktivesSymbol.toUpperCase()+'USDT';
+  try{
+    var res=await fetch('https://api.binance.com/api/v3/klines?symbol='+pair+'&interval='+chartTf+'&limit=500');
+    if(!res.ok)throw new Error('nicht verfügbar');
+    var roh=await res.json();
+    if(!Array.isArray(roh)||!roh.length)throw new Error('leer');
+    chartRohKerzen=roh.map(function(k){return {time:Math.floor(k[0]/1000),open:+k[1],high:+k[2],low:+k[3],close:+k[4],volume:+k[5]};});
+    candleSeries.setData(chartRohKerzen.map(function(k){return {time:k.time,open:k.open,high:k.high,low:k.low,close:k.close};}));
+    chartObj.timeScale().fitContent();
+    chartIndikatorenAktualisieren();
+    chartSubUpdate();
+    signalAuswerten();
+    hinweisEl.textContent='';
+    chartLiveStart(pair,chartTf);
+  }catch(e){
+    chartRohKerzen=[];
+    candleSeries.setData([]);
+    indikatorenEntfernen();
+    chartSubUpdate();
+    signalAuswerten();
+    chartLiveStatus(false,'kein Live-Chart');
+    hinweisEl.textContent='⚠️ Für '+chartAktivesSymbol+' gibt es bei Binance keinen Chart.';
+  }
+}
+
+var chartSocket=null;
+var chartLetztesIndUpdate=0;
+
+function chartLiveStatus(an,text){
+  var el=document.getElementById('chart-live');
+  if(!el)return;
+  el.className='chart-live'+(an?' an':'');
+  el.textContent=an?('🟢 live · '+text):('🔴 '+text);
+}
+
+function chartLiveStop(){
+  if(chartSocket){
+    try{chartSocket.onclose=null;chartSocket.close();}catch(e){}
+    chartSocket=null;
+  }
+  chartLiveStatus(false,'nicht live');
+}
+
+function chartLiveStart(pair,tf){
+  chartLiveStop();
+  try{
+    var s=new WebSocket('wss://stream.binance.com:9443/ws/'+pair.toLowerCase()+'@kline_'+tf);
+    chartSocket=s;
+    s.onopen=function(){chartLiveStatus(true,'…');};
+    s.onmessage=function(ev){
+      if(s!==chartSocket)return;
+      try{
+        var k=JSON.parse(ev.data).k;
+        if(!k)return;
+        var kerze={time:Math.floor(k.t/1000),open:+k.o,high:+k.h,low:+k.l,close:+k.c,volume:+k.v};
+        var letzte=chartRohKerzen[chartRohKerzen.length-1];
+        if(letzte&&letzte.time===kerze.time){chartRohKerzen[chartRohKerzen.length-1]=kerze;}
+        else if(letzte&&kerze.time>letzte.time){chartRohKerzen.push(kerze);if(chartRohKerzen.length>600)chartRohKerzen.shift();}
+        else return;
+        candleSeries.update({time:kerze.time,open:kerze.open,high:kerze.high,low:kerze.low,close:kerze.close});
+        chartLiveStatus(true,new Date().toLocaleTimeString('de-DE'));
+        var jetzt=Date.now();
+        if(jetzt-chartLetztesIndUpdate>2000){
+          chartLetztesIndUpdate=jetzt;
+          chartIndikatorenAktualisieren();
+          chartSubUpdate();
+          signalAuswerten();
+          demoChartTradeLeiste();
+        }
+      }catch(e){}
+    };
+    s.onerror=function(){};
+    s.onclose=function(){
+      if(s!==chartSocket)return;
+      chartLiveStatus(false,'getrennt – neuer Versuch…');
+      setTimeout(function(){
+        if(chartAktivesSymbol&&document.getElementById('chart-panel').style.display!=='none'){
+          chartLiveStart(pair,tf);
+        }
+      },5000);
+    };
+  }catch(e){
+    chartLiveStatus(false,'nicht live');
+  }
+}
+
+function dipRegeln(closes,schwelle){
+  schwelle=schwelle||10;
+  var preis=closes[closes.length-1];
+  var rsi=berechneRsi(closes,14),rsiJetzt=rsi[rsi.length-1],rsiVor=rsi[rsi.length-2];
+  var sma20a=berechneSma(closes,20),sma20=sma20a[sma20a.length-1];
+  var sma50a=berechneSma(closes,50),sma50=sma50a[sma50a.length-1];
+  var sd=berechneStdabw(closes,20,sma20a);
+  var bbUnten=(sma20!=null&&sd[sd.length-1]!=null)?sma20-2*sd[sd.length-1]:null;
+  var n=Math.min(14,closes.length-1);
+  var vorher=closes[closes.length-1-n];
+  var rueckgang=vorher?((preis-vorher)/vorher*100):0;
+  var regeln=[
+    {text:'RSI(14) unter 35 (überverkauft)',ok:rsiJetzt!=null&&rsiJetzt<35},
+    {text:'Kurs unter dem unteren Bollinger-Band',ok:bbUnten!=null&&preis<bbUnten},
+    {text:'Kurs unter dem SMA 20',ok:sma20!=null&&preis<sma20},
+    {text:'Kurs in den letzten '+n+' Kerzen um mind. '+schwelle+' % gefallen',ok:rueckgang<=-schwelle},
+    {text:'RSI dreht nach oben (Kurs fängt sich)',ok:rsiJetzt!=null&&rsiVor!=null&&rsiJetzt>rsiVor&&rsiJetzt<50}
+  ];
+  return {regeln:regeln,erfuellt:regeln.filter(function(r){return r.ok;}).length};
+}
+function verkaufRegeln(closes,schwelle){
+  schwelle=schwelle||5;
+  var preis=closes[closes.length-1];
+  var rsi=berechneRsi(closes,14),rsiJetzt=rsi[rsi.length-1],rsiVor=rsi[rsi.length-2];
+  var s20=berechneSma(closes,20),sma20=s20[s20.length-1];
+  var sd=berechneStdabw(closes,20,s20);
+  var bbOben=(sma20!=null&&sd[sd.length-1]!=null)?sma20+2*sd[sd.length-1]:null;
+  var n=Math.min(14,closes.length-1);
+  var hoch=Math.max.apply(null,closes.slice(closes.length-1-n));
+  var tief=Math.min.apply(null,closes.slice(closes.length-1-n));
+  var vomTief=tief>0?((preis-tief)/tief*100):0;
+  var regeln=[
+    {text:'RSI(14) über 65 (überkauft)',ok:rsiJetzt!=null&&rsiJetzt>65},
+    {text:'Kurs über dem oberen Bollinger-Band',ok:bbOben!=null&&preis>bbOben},
+    {text:'Kurs unter den SMA 20 gefallen (Schwung weg)',ok:sma20!=null&&preis<sma20},
+    {text:'Kurs schon +'+vomTief.toFixed(1)+' % über dem jüngsten Tief (mind. '+schwelle+' %)',ok:vomTief>=schwelle},
+    {text:'RSI dreht nach unten',ok:rsiJetzt!=null&&rsiVor!=null&&rsiJetzt<rsiVor&&rsiJetzt>50}
+  ];
+  return {regeln:regeln,erfuellt:regeln.filter(function(r){return r.ok;}).length};
+}
+function signalAuswerten(){
+  var box=document.getElementById('signal-box');
+  if(!chartRohKerzen.length){box.style.display='none';return;}
+  box.style.display='block';
+  var r=dipRegeln(chartRohKerzen.map(function(k){return k.close;}));
+  document.getElementById('signal-regeln').innerHTML=r.regeln.map(function(x){
+    return '<div class="signal-regel'+(x.ok?' ok':'')+'">'+(x.ok?'✓ ':'· ')+x.text+'</div>';
+  }).join('');
+  var fazit=r.erfuellt>=4?'Starkes Dip-Signal':(r.erfuellt>=2?'Leichtes Dip-Signal':'Kein Dip-Signal');
+  var fEl=document.getElementById('signal-fazit');
+  fEl.textContent=fazit+' ('+r.erfuellt+'/5 Regeln erfüllt)';
+  fEl.className='signal-fazit'+(r.erfuellt>=4?' up':'');
+}
+
+var rsiChart=null,rsiSeries=null;
+var macdChart=null,macdLineS=null,macdSignalS=null,macdHistS=null;
+var syncLaeuft=false;
+
+function subBasisOptionen(){
+  return {
+    autoSize:true,
+    layout:{background:{color:'#1e1e1e'},textColor:'#ccc',fontSize:13},
+    grid:{vertLines:{color:'#2c2c2c'},horzLines:{color:'#2c2c2c'}},
+    timeScale:{timeVisible:true,borderColor:'#333'},
+    rightPriceScale:{borderColor:'#333'},
+    crosshair:{mode:LightweightCharts.CrosshairMode.Normal}
+  };
+}
+function macheSyncHandler(getSelf){
+  return function(range){
+    if(syncLaeuft||!range)return;
+    syncLaeuft=true;
+    var self=getSelf();
+    [chartObj,rsiChart,macdChart].forEach(function(c){
+      if(c&&c!==self){try{c.timeScale().setVisibleLogicalRange(range);}catch(e){}}
+    });
+    syncLaeuft=false;
+  };
+}
+function subAngleichen(){
+  if(!chartObj)return;
+  try{
+    var r=chartObj.timeScale().getVisibleLogicalRange();
+    if(!r)return;
+    if(rsiChart)rsiChart.timeScale().setVisibleLogicalRange(r);
+    if(macdChart)macdChart.timeScale().setVisibleLogicalRange(r);
+  }catch(e){}
+}
+
+function berechneRsi(closes,periode){
+  var out=new Array(closes.length).fill(null);
+  if(closes.length<=periode)return out;
+  var gain=0,loss=0;
+  for(var i=1;i<=periode;i++){
+    var d=closes[i]-closes[i-1];
+    if(d>=0)gain+=d;else loss-=d;
+  }
+  gain/=periode;loss/=periode;
+  out[periode]=loss===0?100:100-100/(1+gain/loss);
+  for(var i=periode+1;i<closes.length;i++){
+    var d2=closes[i]-closes[i-1];
+    var g=d2>0?d2:0,l=d2<0?-d2:0;
+    gain=(gain*(periode-1)+g)/periode;
+    loss=(loss*(periode-1)+l)/periode;
+    out[i]=loss===0?100:100-100/(1+gain/loss);
+  }
+  return out;
+}
+function berechneMacd(closes){
+  var e12=berechneEma(closes,12),e26=berechneEma(closes,26);
+  var macd=closes.map(function(_,i){return (e12[i]!=null&&e26[i]!=null)?e12[i]-e26[i]:null;});
+  var start=-1;
+  for(var i=0;i<macd.length;i++){if(macd[i]!=null){start=i;break;}}
+  var signal=new Array(closes.length).fill(null);
+  if(start>=0){
+    var kompakt=macd.slice(start);
+    var sig=berechneEma(kompakt,9);
+    for(var j=0;j<sig.length;j++)signal[start+j]=sig[j];
+  }
+  var hist=macd.map(function(v,i){return (v!=null&&signal[i]!=null)?v-signal[i]:null;});
+  return {macd:macd,signal:signal,hist:hist};
+}
+
+function chartSubUpdate(){
+  if(typeof LightweightCharts==='undefined')return;
+  var zeiten=chartRohKerzen.map(function(k){return k.time;});
+  var closes=chartRohKerzen.map(function(k){return k.close;});
+  function punkte(werte){
+    var a=[];
+    for(var i=0;i<werte.length;i++)if(werte[i]!=null)a.push({time:zeiten[i],value:werte[i]});
+    return a;
+  }
+  var rsiAn=document.getElementById('ind-rsi').checked&&closes.length>0;
+  var macdAn=document.getElementById('ind-macd').checked&&closes.length>0;
+
+  document.getElementById('titel-rsi').style.display=rsiAn?'block':'none';
+  document.getElementById('pane-rsi').style.display=rsiAn?'block':'none';
+  if(rsiAn){
+    if(!rsiChart){
+      rsiChart=LightweightCharts.createChart(document.getElementById('pane-rsi'),subBasisOptionen());
+      rsiSeries=rsiChart.addLineSeries({color:'#42a5f5',lineWidth:2,lastValueVisible:false,priceLineVisible:false});
+      rsiSeries.createPriceLine({price:70,color:'#555',lineWidth:1,lineStyle:2});
+      rsiSeries.createPriceLine({price:30,color:'#555',lineWidth:1,lineStyle:2});
+      rsiChart.timeScale().subscribeVisibleLogicalRangeChange(macheSyncHandler(function(){return rsiChart;}));
+    }
+    rsiSeries.setData(punkte(berechneRsi(closes,14)));
+  }else if(rsiChart){
+    try{rsiChart.remove();}catch(e){}
+    rsiChart=null;rsiSeries=null;
+  }
+
+  document.getElementById('titel-macd').style.display=macdAn?'block':'none';
+  document.getElementById('pane-macd').style.display=macdAn?'block':'none';
+  if(macdAn){
+    if(!macdChart){
+      macdChart=LightweightCharts.createChart(document.getElementById('pane-macd'),subBasisOptionen());
+      macdHistS=macdChart.addHistogramSeries({lastValueVisible:false,priceLineVisible:false});
+      macdLineS=macdChart.addLineSeries({color:'#42a5f5',lineWidth:2,lastValueVisible:false,priceLineVisible:false});
+      macdSignalS=macdChart.addLineSeries({color:'#ffa726',lineWidth:2,lastValueVisible:false,priceLineVisible:false});
+      macdChart.timeScale().subscribeVisibleLogicalRangeChange(macheSyncHandler(function(){return macdChart;}));
+    }
+    var m=berechneMacd(closes);
+    macdLineS.setData(punkte(m.macd));
+    macdSignalS.setData(punkte(m.signal));
+    var hist=[];
+    for(var i=0;i<m.hist.length;i++)if(m.hist[i]!=null)hist.push({time:zeiten[i],value:m.hist[i],color:m.hist[i]>=0?'rgba(76,175,80,0.6)':'rgba(244,67,54,0.6)'});
+    macdHistS.setData(hist);
+  }else if(macdChart){
+    try{macdChart.remove();}catch(e){}
+    macdChart=null;macdLineS=macdSignalS=macdHistS=null;
+  }
+
+  setTimeout(subAngleichen,40);
+}
+
+function berechneSma(werte,periode){
+  var out=[];var summe=0;
+  for(var i=0;i<werte.length;i++){
+    summe+=werte[i];
+    if(i>=periode)summe-=werte[i-periode];
+    out.push(i>=periode-1?summe/periode:null);
+  }
+  return out;
+}
+function berechneEma(werte,periode){
+  var out=[];var k=2/(periode+1);var prev=null;
+  for(var i=0;i<werte.length;i++){
+    if(i<periode-1){out.push(null);continue;}
+    if(prev===null){
+      var s=0;for(var j=0;j<periode;j++)s+=werte[i-j];
+      prev=s/periode;out.push(prev);continue;
+    }
+    prev=werte[i]*k+prev*(1-k);
+    out.push(prev);
+  }
+  return out;
+}
+function berechneStdabw(werte,periode,mittel){
+  var out=[];
+  for(var i=0;i<werte.length;i++){
+    if(i<periode-1||mittel[i]==null){out.push(null);continue;}
+    var s=0;for(var j=0;j<periode;j++){var d=werte[i-j]-mittel[i];s+=d*d;}
+    out.push(Math.sqrt(s/periode));
+  }
+  return out;
+}
+
+function indikatorenEntfernen(){
+  indSeries.forEach(function(s){try{chartObj.removeSeries(s);}catch(e){}});
+  indSeries=[];
+  if(volumeSeries){try{chartObj.removeSeries(volumeSeries);}catch(e){}volumeSeries=null;}
+}
+
+function chartIndikatorenAktualisieren(){
+  if(!chartObj||!chartRohKerzen.length)return;
+  indikatorenEntfernen();
+  var zeiten=chartRohKerzen.map(function(k){return k.time;});
+  var closes=chartRohKerzen.map(function(k){return k.close;});
+  function punkte(werte){
+    var a=[];
+    for(var i=0;i<werte.length;i++)if(werte[i]!=null)a.push({time:zeiten[i],value:werte[i]});
+    return a;
+  }
+  function linie(farbe,daten){
+    var s=chartObj.addLineSeries({color:farbe,lineWidth:2,priceLineVisible:false,lastValueVisible:false});
+    s.setData(daten);
+    indSeries.push(s);
+  }
+  if(document.getElementById('ind-sma20').checked)linie('#42a5f5',punkte(berechneSma(closes,20)));
+  if(document.getElementById('ind-sma50').checked)linie('#ab47bc',punkte(berechneSma(closes,50)));
+  if(document.getElementById('ind-ema20').checked)linie('#ffa726',punkte(berechneEma(closes,20)));
+  if(document.getElementById('ind-bb').checked){
+    var mitte=berechneSma(closes,20);
+    var sd=berechneStdabw(closes,20,mitte);
+    var oben=mitte.map(function(m,i){return (m!=null&&sd[i]!=null)?m+2*sd[i]:null;});
+    var unten=mitte.map(function(m,i){return (m!=null&&sd[i]!=null)?m-2*sd[i]:null;});
+    linie('#888',punkte(oben));
+    linie('#888',punkte(mitte));
+    linie('#888',punkte(unten));
+  }
+  if(document.getElementById('ind-vol').checked){
+    volumeSeries=chartObj.addHistogramSeries({priceFormat:{type:'volume'},priceScaleId:'',scaleMargins:{top:0.8,bottom:0}});
+    volumeSeries.setData(chartRohKerzen.map(function(k){
+      return {time:k.time,value:k.volume,color:k.close>=k.open?'rgba(76,175,80,0.5)':'rgba(244,67,54,0.5)'};
+    }));
+  }
+}
+
+// --- Demo-Depot (Übungskonto mit Spielgeld) ---
+var DEMO_START=10000;
+function demoLaden(){
+  var d=localStorage.getItem('mb_demo');
+  var x={bar:DEMO_START,positionen:{},verlauf:[]};
+  if(d){try{var y=JSON.parse(d);if(y&&typeof y.bar==='number')x=y;}catch(e){}}
+  if(typeof x.gebuehrProzent!=='number')x.gebuehrProzent=1.0;
+  if(typeof x.gebuehrMin!=='number')x.gebuehrMin=0.99;
+  if(typeof x.zielGewinn!=='number')x.zielGewinn=2;
+  if(typeof x.maxVerlust!=='number')x.maxVerlust=1;
+  if(typeof x.signalTf!=='string')x.signalTf='5m';
+  if(typeof x.alarmAn!=='boolean')x.alarmAn=false;
+  if(typeof x.tresor!=='number')x.tresor=0;
+  if(typeof x.handelsziel!=='number')x.handelsziel=DEMO_START;
+  if(typeof x.autoSichern!=='boolean')x.autoSichern=true;
+  if(typeof x.autoStop!=='boolean')x.autoStop=false;
+  return x;
+}
+function demoSpeichern(x){localStorage.setItem('mb_demo',JSON.stringify(x));}
+function demoPreis(id){var c=aktuelleCoins.find(function(x){return x.id===id;});return c?c.current_price:null;}
+function demoName(id){var c=aktuelleCoins.find(function(x){return x.id===id;});return c?c.name:id;}
+function eur(n){return n.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';}
+function mengeTxt(n){return n.toLocaleString('de-DE',{maximumFractionDigits:8});}
+function demoGebuehrFuer(brutto,depot){
+  depot=depot||demoLaden();
+  var proz=brutto*(depot.gebuehrProzent||0)/100;
+  return Math.max(proz,depot.gebuehrMin||0);
+}
+function demoGebuehrSpeichern(){
+  var depot=demoLaden();
+  var p=parseFloat(document.getElementById('demo-gebuehr').value);
+  var m=parseFloat(document.getElementById('demo-gebuehr-min').value);
+  depot.gebuehrProzent=(isNaN(p)||p<0)?0:p;
+  depot.gebuehrMin=(isNaN(m)||m<0)?0:m;
+  demoSpeichern(depot);
+  demoGebuehrInfo();
+  demoKaufVorschau();
+  document.getElementById('demo-status').textContent='✅ Gebühr gesetzt: '+depot.gebuehrProzent+' % (mind. '+eur(depot.gebuehrMin)+') pro Kauf und pro Verkauf.';
+}
+function demoZieleSpeichern(){
+  var depot=demoLaden();
+  var z=parseFloat(document.getElementById('demo-ziel').value);
+  var s=parseFloat(document.getElementById('demo-stop').value);
+  depot.zielGewinn=(isNaN(z)||z<0)?0:z;
+  depot.maxVerlust=(isNaN(s)||s<0)?0:s;
+  demoSpeichern(depot);
+  demoWerteAktualisieren();
+  document.getElementById('demo-status').textContent='✅ Ziele gesetzt: Gewinn mitnehmen ab +'+depot.zielGewinn+' %, Verlust begrenzen ab −'+depot.maxVerlust+' %.';
+}
+function demoGebuehrInfo(){
+  var depot=demoLaden();
+  var el=document.getElementById('demo-gebuehr-info');
+  if(!el)return;
+  var gi=document.getElementById('demo-gebuehr');
+  var mi=document.getElementById('demo-gebuehr-min');
+  if(gi&&document.activeElement!==gi)gi.value=depot.gebuehrProzent;
+  if(mi&&document.activeElement!==mi)mi.value=depot.gebuehrMin;
+  var zi=document.getElementById('demo-ziel');
+  var si=document.getElementById('demo-stop');
+  if(zi&&document.activeElement!==zi)zi.value=depot.zielGewinn;
+  if(si&&document.activeElement!==si)si.value=depot.maxVerlust;
+  Array.prototype.forEach.call(document.querySelectorAll('.tf-btn'),function(b){
+    b.classList.toggle('aktiv',b.getAttribute('data-stf')===(depot.signalTf||'5m'));
+  });
+  var ai=document.getElementById('demo-alarm-an');
+  if(ai)ai.checked=!!depot.alarmAn;
+  var hz=document.getElementById('demo-handelsziel');
+  if(hz&&document.activeElement!==hz)hz.value=depot.handelsziel;
+  var as=document.getElementById('demo-autosichern');if(as)as.checked=!!depot.autoSichern;
+  var ax=document.getElementById('demo-autostop');if(ax)ax.checked=!!depot.autoStop;
+  el.innerHTML='Wird bei <b>Kauf und Verkauf</b> abgezogen – deckt Broker-Gebühr + Spread (Auf-/Abschlag beim Kurs) ab.<br>'
+    +'Richtwerte: Krypto-Broker (Bitpanda, Coinbase, eToro) ca. <b>1–1,5 %</b>, oft mit Mindestgebühr ~1 €. '
+    +'Krypto-Börsen (Binance, Kraken, Bitvavo) ca. <b>0,1–0,4 %</b>. Jeder Anbieter rechnet anders – das hier ist eine Schätzung.';
+}
+
+function demoFormulareAufbauen(){
+  var kaufSel=document.getElementById('demo-kauf-coin');
+  var verkSel=document.getElementById('demo-verkauf-coin');
+  if(!kaufSel||!verkSel)return;
+  var depot=demoLaden();
+  var vK=kaufSel.value,vV=verkSel.value;
+  kaufSel.innerHTML=aktuelleCoins.map(function(c){return '<option value="'+c.id+'">'+c.name+' ('+c.symbol.toUpperCase()+')</option>';}).join('');
+  if(vK&&aktuelleCoins.some(function(c){return c.id===vK;}))kaufSel.value=vK;
+  var gehalten=Object.keys(depot.positionen).filter(function(id){return depot.positionen[id].menge>1e-12;});
+  verkSel.innerHTML=gehalten.length?gehalten.map(function(id){return '<option value="'+id+'">'+demoName(id)+'</option>';}).join(''):'<option value="">— keine Positionen —</option>';
+  if(vV&&gehalten.indexOf(vV)>=0)verkSel.value=vV;
+  demoGebuehrInfo();
+  demoKaufVorschau();
+}
+
+function demoKaufVorschau(){
+  var sel=document.getElementById('demo-kauf-coin');if(!sel)return;
+  var el=document.getElementById('demo-kauf-info');
+  var preis=demoPreis(sel.value);
+  var betrag=parseFloat(document.getElementById('demo-kauf-betrag').value);
+  if(!preis||!betrag||betrag<=0){el.textContent='';return;}
+  var gebuehr=demoGebuehrFuer(betrag);
+  var investiert=Math.max(betrag-gebuehr,0);
+  el.textContent='Für '+eur(betrag)+': −'+eur(gebuehr)+' Gebühr → '+eur(investiert)+' angelegt ≈ '+mengeTxt(investiert/preis)+' Stück (Kurs '+formatierePreis(preis)+' €)';
+}
+
+var demoAutoStopLaeuft=false;
+function demoAutoStopPruefen(){
+  if(demoAutoStopLaeuft)return false;
+  var depot=demoLaden();
+  if(!depot.autoStop)return false;
+  var ziel=depot.zielGewinn||0, stop=depot.maxVerlust||0;
+  if(ziel<=0&&stop<=0)return false;
+  var treffer=[];
+  Object.keys(depot.positionen).forEach(function(id){
+    var p=depot.positionen[id];
+    if(p.menge<=1e-12)return;
+    var preis=demoPreis(id);
+    if(preis==null||p.kosten<=0)return;
+    var proz=(p.menge*preis-p.kosten)/p.kosten*100;
+    if(stop>0&&proz<=-stop)treffer.push({id:id,menge:p.menge,grund:'🔴 Auto-Stop '+proz.toFixed(1)+' %'});
+    else if(ziel>0&&proz>=ziel)treffer.push({id:id,menge:p.menge,grund:'🟢 Auto-Ziel +'+proz.toFixed(1)+' %'});
+  });
+  if(!treffer.length)return false;
+  demoAutoStopLaeuft=true;
+  var msgs=treffer.map(function(x){var r=demoVerkaufCore(x.id,x.menge);return x.grund+' → '+r.text;});
+  demoAutoStopLaeuft=false;
+  demoTradeFlag=true;
+  try{demoBeep();}catch(e){}
+  var b=document.getElementById('demo-alarm');
+  if(b){b.style.display='block';b.innerHTML='🔔 <b>'+new Date().toLocaleTimeString('de-DE')+'</b> – automatisch verkauft:<br>'+msgs.join('<br>');}
+  var st=document.getElementById('demo-status');if(st)st.innerHTML=msgs.join('<br>');
+  return true;
+}
+
+function demoWerteAktualisieren(){
+  var view=document.getElementById('ansicht-demo');
+  if(!view||view.style.display==='none')return;
+  var kaufSel=document.getElementById('demo-kauf-coin');
+  if(kaufSel&&kaufSel.options.length===0&&aktuelleCoins.length)demoFormulareAufbauen();
+  if(demoAutoStopPruefen()){demoFormulareAufbauen();}
+  var depot=demoLaden();
+  var posWert=0,html='';
+  Object.keys(depot.positionen).forEach(function(id){
+    var p=depot.positionen[id];
+    if(p.menge<=1e-12)return;
+    var preis=demoPreis(id);
+    var wert=preis!=null?p.menge*preis:0;
+    posWert+=wert;
+    var gv=wert-p.kosten;
+    var proz=p.kosten>0?gv/p.kosten*100:0;
+    var kl=gv>=0?'up':'down';
+    var avg=p.menge>0?p.kosten/p.menge:0;
+    var ziel=depot.zielGewinn||0, stop=depot.maxVerlust||0;
+    var sig;
+    if(stop>0&&proz<=-stop)sig='🔴 Stop-Loss ('+proz.toFixed(1)+' %) – Regel: Verlust begrenzen, verkaufen';
+    else if(ziel>0&&proz>=ziel)sig='🟢 Zielgewinn (+'+proz.toFixed(1)+' %) – Regel: Gewinn mitnehmen, verkaufen';
+    else if(ziel>0&&proz>=ziel-3)sig='🟡 kurz vor Zielgewinn (+'+proz.toFixed(1)+' %)';
+    else sig='⚪ läuft ('+(proz>=0?'+':'')+proz.toFixed(1)+' %) – halten';
+    html+='<div class="demo-pos">'
+      +'<div class="coin-info"><div class="coin-name">'+demoName(id)+'</div>'
+      +'<div class="coin-symbol">'+mengeTxt(p.menge)+' · Ø '+formatierePreis(avg)+' € · jetzt '+(preis!=null?formatierePreis(preis)+' €':'–')+'</div>'
+      +'<div style="font-size:12px;color:#aaa;margin-top:2px">'+sig+'</div></div>'
+      +'<div class="coin-price"><div class="price">'+eur(wert)+'</div>'
+      +'<div class="change '+kl+'">'+(gv>=0?'+':'')+eur(gv)+' ('+(gv>=0?'+':'')+proz.toFixed(2)+'%)</div></div>'
+      +'</div>';
+  });
+  document.getElementById('demo-positionen').innerHTML=html||'<div class="such-hinweis">Noch keine Positionen – oben etwas kaufen.</div>';
+  var kostenSumme=0;
+  Object.keys(depot.positionen).forEach(function(id){if(depot.positionen[id].menge>1e-12)kostenSumme+=depot.positionen[id].kosten;});
+  var tresor=depot.tresor||0;
+  var gesamt=depot.bar+posWert+tresor, gGV=gesamt-DEMO_START;
+  var realisiert=depot.bar+tresor+kostenSumme-DEMO_START;
+  var offen=posWert-kostenSumme;
+  document.getElementById('demo-bar').textContent=eur(depot.bar);
+  document.getElementById('demo-posval').textContent=eur(posWert);
+  var trEl=document.getElementById('demo-tresor');if(trEl)trEl.textContent=eur(tresor);
+  document.getElementById('demo-gesamt').textContent=eur(gesamt);
+  var gvEl=document.getElementById('demo-gv');
+  gvEl.textContent=(gGV>=0?'+':'')+eur(gGV)+' ('+(gGV>=0?'+':'')+(gGV/DEMO_START*100).toFixed(2)+'%)';
+  gvEl.className='demo-wert '+(gGV>=0?'up':'down');
+  function setGV(elId,wert){var e=document.getElementById(elId);if(!e)return;e.textContent=(wert>=0?'+':'')+eur(wert);e.className=wert>=0?'up':'down';}
+  setGV('demo-realisiert',realisiert);
+  setGV('demo-unreal',offen);
+  setGV('demo-gv-chart',gGV);
+  demoChartPflege(depot,gesamt);
+  var vHtml=depot.verlauf.slice(0,20).map(function(t){
+    if(t.art==='tresor'){
+      return '<div style="padding:6px 0;border-bottom:1px solid #2c2c2c">'
+        +'<span style="color:#ffb74d;font-weight:bold">🔒 Tresor</span> '+t.name+' · '+eur(t.betrag)
+        +'<div style="color:#888;font-size:11px">'+new Date(t.zeit).toLocaleString('de-DE')+'</div></div>';
+    }
+    var farbe=t.art==='kauf'?'#4caf50':'#f44336';
+    var geb=t.gebuehr?' · Gebühr −'+eur(t.gebuehr):'';
+    return '<div style="padding:6px 0;border-bottom:1px solid #2c2c2c">'
+      +'<span style="color:'+farbe+';font-weight:bold">'+(t.art==='kauf'?'Kauf':'Verkauf')+'</span> '+t.name+' · '
+      +mengeTxt(t.menge)+' zu '+formatierePreis(t.preis)+' € = '+eur(t.betrag)+geb
+      +'<div style="color:#888;font-size:11px">'+new Date(t.zeit).toLocaleString('de-DE')+'</div></div>';
+  }).join('');
+  document.getElementById('demo-verlauf').innerHTML=vHtml||'Noch keine Trades.';
+  demoKaufVorschau();
+}
+
+var demoChart=null,demoSerie=null,demoLiveT=0,demoLetzterEquity=0,demoTradeFlag=false;
+function demoChartInit(){
+  if(demoChart||typeof LightweightCharts==='undefined')return;
+  var el=document.getElementById('demo-chart');
+  if(!el||!el.clientWidth)return;
+  demoChart=LightweightCharts.createChart(el,{
+    autoSize:true,
+    layout:{background:{color:'#1e1e1e'},textColor:'#ccc',fontSize:12},
+    grid:{vertLines:{color:'#2c2c2c'},horzLines:{color:'#2c2c2c'}},
+    timeScale:{timeVisible:true,borderColor:'#333'},
+    rightPriceScale:{borderColor:'#333'}
+  });
+  demoSerie=demoChart.addBaselineSeries({
+    baseValue:{type:'price',price:DEMO_START},
+    topLineColor:'#4caf50',topFillColor1:'rgba(76,175,80,0.28)',topFillColor2:'rgba(76,175,80,0.03)',
+    bottomLineColor:'#f44336',bottomFillColor1:'rgba(244,67,54,0.03)',bottomFillColor2:'rgba(244,67,54,0.28)',
+    lineWidth:2,priceLineVisible:false,lastValueVisible:true
+  });
+}
+function demoEquityPunkt(depot,wert){
+  if(!depot.equity)depot.equity=[];
+  var t=Math.floor(Date.now()/1000);
+  var last=depot.equity[depot.equity.length-1];
+  if(last&&t<=last.t)t=last.t+1;
+  depot.equity.push({t:t,v:Math.round(wert*100)/100});
+  if(depot.equity.length>1000)depot.equity.splice(0,depot.equity.length-1000);
+}
+function demoChartNeu(depot,total){
+  demoChartInit();
+  if(!demoSerie)return;
+  var pts=(depot.equity||[]).slice();
+  if(!pts.length)pts.push({t:Math.floor(Date.now()/1000)-1,v:DEMO_START});
+  var arr=pts.map(function(p){return {time:p.t,value:p.v};});
+  demoLiveT=arr[arr.length-1].time+1;
+  arr.push({time:demoLiveT,value:Math.round((total==null?DEMO_START:total)*100)/100});
+  demoSerie.setData(arr);
+  demoChart.timeScale().fitContent();
+}
+function demoChartPflege(depot,total){
+  var jetzt=Date.now();
+  var force=demoTradeFlag;demoTradeFlag=false;
+  if(!demoSerie){demoChartNeu(depot,total);demoLetzterEquity=jetzt;return;}
+  if(force||jetzt-demoLetzterEquity>60000){
+    demoLetzterEquity=jetzt;
+    demoEquityPunkt(depot,total);
+    demoSpeichern(depot);
+    demoChartNeu(depot,total);
+  }else{
+    demoSerie.update({time:demoLiveT,value:Math.round(total*100)/100});
+  }
+}
+
+function demoSignalTf(tf){
+  var depot=demoLaden();
+  depot.signalTf=tf;
+  demoSpeichern(depot);
+  demoGebuehrInfo();
+  demoMarktSignale();
+}
+function demoPreset(z,s){
+  document.getElementById('demo-ziel').value=z;
+  document.getElementById('demo-stop').value=s;
+  demoZieleSpeichern();
+}
+var SIGNAL_SCHWELLE={'1m':1.5,'5m':2.5,'15m':4,'1h':8};
+
+async function demoSignaleSammeln(){
+  var depot=demoLaden();
+  var tf=depot.signalTf||'5m';
+  var schwelle=SIGNAL_SCHWELLE[tf]||3;
+  var ziele=[];
+  var kaufId=document.getElementById('demo-kauf-coin').value;
+  if(kaufId)ziele.push({id:kaufId,art:'kauf'});
+  Object.keys(depot.positionen).forEach(function(id){if(depot.positionen[id].menge>1e-12)ziele.push({id:id,art:'verkauf'});});
+  var gesehen={},zeilen=[],signale=[];
+  for(var i=0;i<ziele.length;i++){
+    var z=ziele[i],key=z.id+'-'+z.art;
+    if(gesehen[key])continue;gesehen[key]=1;
+    var coin=aktuelleCoins.find(function(c){return c.id===z.id;});
+    if(!coin){zeilen.push('· '+z.id+': kein Kurs');continue;}
+    var pair=coin.symbol.toUpperCase()+'USDT';
+    try{
+      var res=await fetch('https://api.binance.com/api/v3/klines?symbol='+pair+'&interval='+tf+'&limit=200');
+      var roh=await res.json();
+      if(!Array.isArray(roh)||roh.length<50)throw 0;
+      var closes=roh.map(function(k){return +k[4];});
+      if(z.art==='kauf'){
+        var r=dipRegeln(closes,schwelle);
+        var stark=r.erfuellt>=4;
+        var txt=stark?'🟢 starkes Kauf-Signal':(r.erfuellt>=2?'🟡 leichtes Kauf-Signal':'⚪ kein Kauf-Signal');
+        zeilen.push('<b>'+coin.name+' – Kaufen:</b> '+txt+' ('+r.erfuellt+'/5 Regeln, '+tf+'-Kerzen)');
+        signale.push({id:z.id,name:coin.name,art:'kauf',stark:stark,text:coin.name+': Kauf-Signal '+r.erfuellt+'/5 ('+tf+')'});
+      }else{
+        var rv=verkaufRegeln(closes,schwelle);
+        var pos=depot.positionen[z.id];
+        var proz=pos.kosten>0?((pos.menge*coin.current_price-pos.kosten)/pos.kosten*100):0;
+        var extra=[];
+        if((depot.zielGewinn||0)>0&&proz>=depot.zielGewinn)extra.push('Zielgewinn +'+proz.toFixed(1)+' %');
+        if((depot.maxVerlust||0)>0&&proz<=-depot.maxVerlust)extra.push('Stop-Loss '+proz.toFixed(1)+' %');
+        var starkV=extra.length>0||rv.erfuellt>=3;
+        var txt2=starkV?'🔴 Verkaufs-Signal':(rv.erfuellt>=1?'🟡 beobachten':'⚪ halten');
+        zeilen.push('<b>'+coin.name+' – Verkaufen:</b> '+txt2+' ('+rv.erfuellt+' Markt-Regeln'+(extra.length?' + '+extra.join(', '):'')+', '+tf+')');
+        signale.push({id:z.id,name:coin.name,art:'verkauf',stark:starkV,text:coin.name+': Verkaufs-Signal '+(extra.length?'('+extra.join(', ')+')':'('+rv.erfuellt+' Regeln)')});
+      }
+    }catch(e){
+      zeilen.push('· '+coin.name+': keine Kerzendaten bei Binance');
+    }
+  }
+  return {zeilen:zeilen,signale:signale};
+}
+
+async function demoMarktSignale(){
+  var el=document.getElementById('demo-signale');
+  el.textContent='⏳ prüfe Kerzendaten…';
+  var r=await demoSignaleSammeln();
+  el.innerHTML=(r.zeilen.join('<br>')||'Nichts zu prüfen – erst einen Coin auswählen oder kaufen.')
+    +'<br><span style="color:#777">Stand: '+new Date().toLocaleTimeString('de-DE')+' · nur Regeln, keine Beratung</span>';
+}
+
+var demoAlarmStatus={},demoAudioCtx=null,demoAlarmLaeuft=false;
+function demoBeep(){
+  try{
+    if(!demoAudioCtx)demoAudioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    demoAudioCtx.resume();
+    var t=demoAudioCtx.currentTime;
+    [0,0.45].forEach(function(off){
+      var o=demoAudioCtx.createOscillator(),g=demoAudioCtx.createGain();
+      o.connect(g);g.connect(demoAudioCtx.destination);
+      o.type='sine';o.frequency.value=880;
+      g.gain.setValueAtTime(0.0001,t+off);
+      g.gain.exponentialRampToValueAtTime(0.3,t+off+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+off+0.3);
+      o.start(t+off);o.stop(t+off+0.32);
+    });
+  }catch(e){}
+}
+function demoAlarmUmschalten(){
+  var depot=demoLaden();
+  depot.alarmAn=document.getElementById('demo-alarm-an').checked;
+  demoSpeichern(depot);
+  demoAlarmStatus={};
+  if(depot.alarmAn){
+    try{if(!demoAudioCtx)demoAudioCtx=new (window.AudioContext||window.webkitAudioContext)();demoAudioCtx.resume();}catch(e){}
+    document.getElementById('demo-status').textContent='🔔 Auto-Alarm an – prüft alle 30 Sek. den gewählten Kauf-Coin und deine Positionen.';
+    demoAlarmPruefen();
+  }else{
+    document.getElementById('demo-alarm').style.display='none';
+    document.getElementById('demo-status').textContent='🔕 Auto-Alarm aus.';
+  }
+}
+async function demoAlarmPruefen(){
+  if(demoAlarmLaeuft)return;
+  var depot=demoLaden();
+  if(!depot.alarmAn)return;
+  var view=document.getElementById('ansicht-demo');
+  if(!view||view.style.display==='none')return;
+  demoAlarmLaeuft=true;
+  try{
+    var r=await demoSignaleSammeln();
+    document.getElementById('demo-signale').innerHTML=(r.zeilen.join('<br>')||'—')
+      +'<br><span style="color:#777">Auto-Prüfung: '+new Date().toLocaleTimeString('de-DE')+'</span>';
+    var neue=[],aktiv={};
+    r.signale.forEach(function(s){
+      if(!s.stark)return;
+      var k=s.id+'-'+s.art;aktiv[k]=1;
+      if(!demoAlarmStatus[k])neue.push(s);
+    });
+    Object.keys(demoAlarmStatus).forEach(function(k){if(!aktiv[k])delete demoAlarmStatus[k];});
+    Object.keys(aktiv).forEach(function(k){demoAlarmStatus[k]=1;});
+    if(neue.length){
+      demoBeep();
+      var b=document.getElementById('demo-alarm');
+      b.style.display='block';
+      b.innerHTML='🔔 <b>'+new Date().toLocaleTimeString('de-DE')+'</b> – jetzt entscheiden:<br>'
+        +neue.map(function(s){return (s.art==='kauf'?'🟢 ':'🔴 ')+s.text;}).join('<br>');
+      var sell=neue.filter(function(s){return s.art==='verkauf';})[0];
+      if(sell){
+        var vs=document.getElementById('demo-verkauf-coin');
+        if(vs&&Array.prototype.some.call(vs.options,function(o){return o.value===sell.id;}))vs.value=sell.id;
+      }
+    }
+  }catch(e){}
+  demoAlarmLaeuft=false;
+}
+setInterval(demoAlarmPruefen,30000);
+
+function demoKaufCore(id,betrag){
+  var depot=demoLaden();
+  var preis=demoPreis(id);
+  if(!id||preis==null)return {ok:false,text:'⚠️ Kurs nicht verfügbar – kurz warten, bis die Kurse geladen sind.'};
+  if(!betrag||betrag<=0)return {ok:false,text:'⚠️ Bitte einen Euro-Betrag eingeben.'};
+  if(betrag>depot.bar)return {ok:false,text:'⚠️ Nicht genug Bargeld. Verfügbar: '+eur(depot.bar)+'.'};
+  var gebuehr=demoGebuehrFuer(betrag,depot);
+  if(gebuehr>=betrag)return {ok:false,text:'⚠️ Betrag zu klein – die Gebühr ('+eur(gebuehr)+') wäre größer als der Kauf.'};
+  var investiert=betrag-gebuehr;
+  var menge=investiert/preis;
+  depot.bar-=betrag;
+  if(!depot.positionen[id])depot.positionen[id]={menge:0,kosten:0};
+  depot.positionen[id].menge+=menge;
+  depot.positionen[id].kosten+=betrag;
+  depot.verlauf.unshift({zeit:Date.now(),art:'kauf',name:demoName(id),menge:menge,preis:preis,betrag:betrag,gebuehr:gebuehr});
+  demoSpeichern(depot);
+  demoTradeFlag=true;
+  return {ok:true,text:'✅ '+mengeTxt(menge)+' '+demoName(id)+' gekauft für '+eur(betrag)+' (davon '+eur(gebuehr)+' Gebühr).'};
+}
+function demoVerkaufCore(id,menge){
+  var depot=demoLaden();
+  var preis=demoPreis(id);
+  var pos=depot.positionen[id];
+  if(!id||!pos)return {ok:false,text:'⚠️ Keine Position in diesem Coin.'};
+  if(preis==null)return {ok:false,text:'⚠️ Kurs nicht verfügbar.'};
+  if(!menge||menge<=0)return {ok:false,text:'⚠️ Bitte eine Menge eingeben (oder „Alles").'};
+  if(menge>pos.menge)menge=pos.menge;
+  var brutto=menge*preis;
+  var gebuehr=demoGebuehrFuer(brutto,depot);
+  var netto=Math.max(brutto-gebuehr,0);
+  var kostenanteil=pos.menge>0?pos.kosten*(menge/pos.menge):0;
+  pos.menge-=menge;pos.kosten-=kostenanteil;
+  if(pos.menge<=1e-12)delete depot.positionen[id];
+  depot.bar+=netto;
+  var gv=netto-kostenanteil;
+  depot.verlauf.unshift({zeit:Date.now(),art:'verkauf',name:demoName(id),menge:menge,preis:preis,betrag:netto,brutto:brutto,gebuehr:gebuehr});
+  var gesichert=0;
+  if(depot.autoSichern&&gv>0&&depot.bar>depot.handelsziel){
+    gesichert=Math.min(depot.bar-depot.handelsziel,gv);
+    depot.bar-=gesichert;
+    depot.tresor=(depot.tresor||0)+gesichert;
+    depot.verlauf.unshift({zeit:Date.now(),art:'tresor',name:'Gewinn gesichert',menge:0,preis:0,betrag:gesichert});
+  }
+  demoSpeichern(depot);
+  demoTradeFlag=true;
+  var txt='✅ '+demoName(id)+' verkauft: '+eur(brutto)+' − '+eur(gebuehr)+' Gebühr = '+eur(netto)+' ('+(gv>=0?'Gewinn +':'Verlust ')+eur(gv)+').';
+  if(gesichert>0)txt+=' 🔒 '+eur(gesichert)+' in den Tresor.';
+  return {ok:true,text:txt};
+}
+function demoTresorRein(){
+  var depot=demoLaden();
+  var b=parseFloat(document.getElementById('demo-tresor-betrag').value);
+  var st=document.getElementById('demo-status');
+  if(!b||b<=0){st.textContent='⚠️ Betrag zum Sichern eingeben.';return;}
+  if(b>depot.bar){st.textContent='⚠️ So viel Handelsgeld hast du nicht ('+eur(depot.bar)+').';return;}
+  depot.bar-=b;depot.tresor=(depot.tresor||0)+b;
+  depot.verlauf.unshift({zeit:Date.now(),art:'tresor',name:'in den Tresor gelegt',menge:0,preis:0,betrag:b});
+  demoSpeichern(depot);
+  st.textContent='🔒 '+eur(b)+' in den Tresor gelegt.';
+  demoNachTrade();
+}
+function demoTresorRaus(){
+  var depot=demoLaden();
+  var b=parseFloat(document.getElementById('demo-tresor-betrag').value);
+  var st=document.getElementById('demo-status');
+  if(!b||b<=0){st.textContent='⚠️ Betrag zum Zurückholen eingeben.';return;}
+  if(b>(depot.tresor||0)){st.textContent='⚠️ So viel liegt nicht im Tresor ('+eur(depot.tresor||0)+').';return;}
+  depot.tresor-=b;depot.bar+=b;
+  depot.verlauf.unshift({zeit:Date.now(),art:'tresor',name:'aus dem Tresor zurück',menge:0,preis:0,betrag:b});
+  demoSpeichern(depot);
+  st.textContent='↩️ '+eur(b)+' zurück ins Handelsgeld.';
+  demoNachTrade();
+}
+function demoTresorEinstellungen(){
+  var depot=demoLaden();
+  var z=parseFloat(document.getElementById('demo-handelsziel').value);
+  depot.handelsziel=(isNaN(z)||z<=0)?DEMO_START:z;
+  depot.autoSichern=document.getElementById('demo-autosichern').checked;
+  depot.autoStop=document.getElementById('demo-autostop').checked;
+  demoSpeichern(depot);
+  demoWerteAktualisieren();
+  document.getElementById('demo-status').textContent='✅ Handelsgeld-Ziel '+eur(depot.handelsziel)
+    +' · Auto-Sichern '+(depot.autoSichern?'an':'aus')
+    +' · Auto-Stop '+(depot.autoStop?'an':'aus')+'.';
+}
+function demoNachTrade(){demoFormulareAufbauen();demoWerteAktualisieren();demoChartTradeLeiste();}
+
+function demoKaufen(){
+  var r=demoKaufCore(document.getElementById('demo-kauf-coin').value,parseFloat(document.getElementById('demo-kauf-betrag').value));
+  document.getElementById('demo-status').textContent=r.text;
+  demoNachTrade();
+}
+function demoMengeAlles(){
+  var depot=demoLaden();
+  var id=document.getElementById('demo-verkauf-coin').value;
+  if(depot.positionen[id])document.getElementById('demo-verkauf-menge').value=depot.positionen[id].menge;
+}
+function demoVerkaufen(){
+  var r=demoVerkaufCore(document.getElementById('demo-verkauf-coin').value,parseFloat(document.getElementById('demo-verkauf-menge').value));
+  document.getElementById('demo-status').textContent=r.text;
+  if(r.ok)document.getElementById('demo-verkauf-menge').value='';
+  demoNachTrade();
+}
+
+function chartCoinId(){
+  if(!chartAktivesSymbol)return null;
+  var c=aktuelleCoins.find(function(x){return x.symbol.toUpperCase()===chartAktivesSymbol.toUpperCase();});
+  return c?c.id:null;
+}
+function chartKaufen(){
+  var id=chartCoinId();
+  var r=demoKaufCore(id,parseFloat(document.getElementById('chart-kauf-betrag').value));
+  document.getElementById('chart-trade-info').textContent=r.text;
+  demoNachTrade();
+}
+function chartVerkaufenAlles(){
+  var id=chartCoinId();
+  var depot=demoLaden();
+  var pos=id?depot.positionen[id]:null;
+  if(!pos){document.getElementById('chart-trade-info').textContent='⚠️ Du hältst diesen Coin nicht.';return;}
+  var r=demoVerkaufCore(id,pos.menge);
+  document.getElementById('chart-trade-info').textContent=r.text;
+  demoNachTrade();
+}
+function chartVerkaufen(){
+  var id=chartCoinId();
+  var r=demoVerkaufCore(id,parseFloat(document.getElementById('chart-verkauf-menge').value));
+  document.getElementById('chart-trade-info').textContent=r.text;
+  if(r.ok)document.getElementById('chart-verkauf-menge').value='';
+  demoNachTrade();
+}
+function demoChartTradeLeiste(){
+  var box=document.getElementById('chart-trade');
+  if(!box)return;
+  var id=chartCoinId();
+  var depot=demoLaden();
+  var preis=id?demoPreis(id):null;
+  var pos=id?depot.positionen[id]:null;
+  var best=document.getElementById('chart-trade-bestand');
+  if(!id||preis==null){best.textContent='Kurs lädt…';return;}
+  var txt='frei: '+eur(depot.bar);
+  if(pos&&pos.menge>1e-12){
+    var wert=pos.menge*preis,gv=wert-pos.kosten,proz=pos.kosten>0?gv/pos.kosten*100:0;
+    txt='Bestand: '+mengeTxt(pos.menge)+' '+chartAktivesSymbol+' = '+eur(wert)+' ('+(gv>=0?'+':'')+proz.toFixed(2)+' %) · '+txt;
+  }
+  best.textContent='Kurs '+formatierePreis(preis)+' € · '+txt;
+}
+
+function demoZuruecksetzen(){
+  if(!confirm('Depot wirklich zurücksetzen? Alle Positionen und der Verlauf werden gelöscht, du startest wieder mit 10.000 € Spielgeld.'))return;
+  var alt=demoLaden();
+  demoSpeichern({bar:DEMO_START,positionen:{},verlauf:[],tresor:0,gebuehrProzent:alt.gebuehrProzent,gebuehrMin:alt.gebuehrMin,zielGewinn:alt.zielGewinn,maxVerlust:alt.maxVerlust,signalTf:alt.signalTf,alarmAn:alt.alarmAn,handelsziel:alt.handelsziel,autoSichern:alt.autoSichern,autoStop:alt.autoStop});
+  demoTradeFlag=true;
+  demoFormulareAufbauen();
+  demoWerteAktualisieren();
+  document.getElementById('demo-status').textContent='✅ Zurückgesetzt – 10.000 € Spielgeld (Gebühren-Einstellung bleibt).';
+}
+</script>
+</body>
+</html>
