@@ -109,7 +109,7 @@ h1{margin:0;font-size:22px}
 <body>
 <header>
 <h1>📊 Marktblick</h1>
-<div class="sub">Kurse in Echtzeit · Stand 28.08.2026 (b)</div>
+<div class="sub">Kurse in Echtzeit · Stand 28.08.2026 (c)</div>
 </header>
 <div class="tabs">
 <button class="tab-btn active" id="tab-krypto" onclick="wechsleTab('krypto')">🪙 Krypto</button>
@@ -420,12 +420,15 @@ Vorlagen: <a href="#" onclick="demoPreset(2,1);return false" style="color:#2962f
 <div class="rechner-titel" id="titel-dtf" onclick="rechnerUmschalten('dtf')"><span class="rechner-pfeil" id="pfeil-dtf">▾</span>🔄 Depot übertragen (PC ↔ Handy)</div>
 <div class="rechner-body" id="body-dtf">
 <div class="rechner-zeile">
-<button onclick="demoExportieren()">📤 Exportieren</button>
-<button class="grau" onclick="demoImportieren()">📥 Importieren</button>
+<button onclick="demoExportieren()">📤 Exportieren + kopieren</button>
 </div>
-<textarea id="demo-transfer" placeholder="Hier erscheint beim Exportieren der Code. Zum Importieren den Code vom anderen Gerät hier einfügen." style="width:100%;height:80px;margin-top:8px;border-radius:8px;border:1px solid #333;background:#121212;color:#eee;font-size:12px;padding:8px;box-sizing:border-box"></textarea>
+<textarea id="demo-transfer" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Hier erscheint beim Exportieren der Code." style="width:100%;height:80px;margin-top:8px;border-radius:8px;border:1px solid #333;background:#121212;color:#eee;font-size:12px;padding:8px;box-sizing:border-box"></textarea>
+<div class="rechner-zeile" style="margin-top:6px">
+<button class="grau" onclick="demoImportClipboard()">📋 Aus Zwischenablage einfügen</button>
+<button onclick="demoImportieren()">📥 Importieren</button>
+</div>
 <div class="rechner-ergebnis" id="demo-transfer-info" style="font-size:12px;font-weight:normal;color:#ddd;text-align:left"></div>
-<div class="signal-hinweis">Das Demo-Depot liegt nur lokal auf dem Gerät und wird nicht automatisch synchronisiert. Zum Übertragen: am einen Gerät „Exportieren", den Code kopieren, am anderen Gerät einfügen und „Importieren". Der Import ersetzt das dortige Depot komplett.</div>
+<div class="signal-hinweis">Das Demo-Depot liegt nur lokal auf dem Gerät und wird nicht automatisch synchronisiert. Am einen Gerät „Exportieren + kopieren", Code z. B. per Mail ans andere Gerät schicken. Dort: „📋 Aus Zwischenablage einfügen" (holt den Code direkt) oder von Hand ins Feld einfügen, dann „📥 Importieren". Der Import ersetzt das dortige Depot komplett.</div>
 </div>
 </div>
 <button class="refresh-btn" onclick="demoZuruecksetzen()">↺ Depot auf 10.000 € zurücksetzen</button>
@@ -2550,17 +2553,46 @@ function demoExportieren(){
     var code='MB1:'+btoa(unescape(encodeURIComponent(JSON.stringify(demoLaden()))));
     el.value=code;
     el.focus();el.select();
-    try{document.execCommand('copy');}catch(e){}
-    info.textContent='✅ Code erzeugt und (wenn möglich) kopiert. Am anderen Gerät im gleichen Feld einfügen und „Importieren" drücken.';
+    var kopiert=false;
+    try{if(document.execCommand('copy'))kopiert=true;}catch(e){}
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(code).then(function(){
+        info.textContent='✅ Code erzeugt und kopiert. Jetzt z. B. per Mail an dich selbst schicken, am anderen Gerät „📋 Aus Zwischenablage einfügen".';
+      }).catch(function(){});
+    }
+    info.textContent=kopiert
+      ? '✅ Code erzeugt und kopiert. Jetzt z. B. per Mail an dich selbst schicken, am anderen Gerät „📋 Aus Zwischenablage einfügen".'
+      : '✅ Code erzeugt. Bitte von Hand markieren und kopieren.';
   }catch(e){
     info.textContent='⚠️ Export nicht möglich.';
   }
+}
+function demoImportClipboard(){
+  var info=document.getElementById('demo-transfer-info');
+  if(!(navigator.clipboard&&navigator.clipboard.readText)){
+    info.textContent='⚠️ Zwischenablage nicht lesbar. Bitte lange ins Feld tippen → „Einfügen", dann „Importieren".';
+    return;
+  }
+  navigator.clipboard.readText().then(function(t){
+    document.getElementById('demo-transfer').value=(t||'').trim();
+    info.textContent='📋 Eingefügt. Jetzt auf „📥 Importieren" tippen.';
+  }).catch(function(){
+    info.textContent='⚠️ Zugriff auf die Zwischenablage abgelehnt. Bitte lange ins Feld tippen → „Einfügen".';
+  });
 }
 function demoImportieren(){
   var el=document.getElementById('demo-transfer');
   var info=document.getElementById('demo-transfer-info');
   var code=(el.value||'').trim();
-  if(!code){info.textContent='⚠️ Erst den Code vom anderen Gerät einfügen.';return;}
+  if(!code&&navigator.clipboard&&navigator.clipboard.readText){
+    navigator.clipboard.readText().then(function(t){
+      el.value=(t||'').trim();
+      if(el.value)demoImportieren();
+      else info.textContent='⚠️ Kein Code im Feld. Lange ins Feld tippen → „Einfügen", dann nochmal „Importieren".';
+    }).catch(function(){info.textContent='⚠️ Kein Code im Feld. Lange ins Feld tippen → „Einfügen", dann nochmal „Importieren".';});
+    return;
+  }
+  if(!code){info.textContent='⚠️ Erst den Code vom anderen Gerät einfügen (Feld oder „📋 Aus Zwischenablage einfügen").';return;}
   if(code.indexOf('MB1:')===0)code=code.slice(4);
   var neu;
   try{ neu=JSON.parse(decodeURIComponent(escape(atob(code)))); }
