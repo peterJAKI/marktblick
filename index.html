@@ -20,7 +20,7 @@ if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
 <style>
 *{box-sizing:border-box}
 body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#000;color:#eee}
-header{background:#1b1b1b;padding:16px;text-align:center;border-bottom:2px solid #333}
+header{background:#000;padding:16px;text-align:center;border-bottom:2px solid #333}
 h1{margin:0;font-size:22px}
 .sub{color:#999;font-size:13px;margin-top:4px}
 #status{text-align:center;padding:8px;font-size:13px;color:#888}
@@ -33,7 +33,7 @@ h1{margin:0;font-size:22px}
 .coin-symbol{color:#888;font-size:12px;text-transform:uppercase}
 .coin-spark{flex:1 1 auto;min-width:44px;max-width:200px;align-self:center;line-height:0;margin:0 auto}
 .coin-spark .spark{width:100%;height:40px;display:block}
-#fng-box{max-width:720px;margin:0 auto 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:#1e1e1e;border:1px solid #2c2c2c;border-radius:12px;padding:14px}
+#fng-box{max-width:640px;margin:0 auto 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:#000;border:1px solid #333;border-radius:12px;padding:14px}
 #fng-ring{width:56px;height:56px;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;color:#888}
 #fng-text{text-align:center}
 #fng-titel{font-size:12px;color:#888}
@@ -46,7 +46,7 @@ h1{margin:0;font-size:22px}
 .live-status{color:#4caf50}
 .refresh-btn{display:block;margin:14px auto;padding:10px 20px;background:#2962ff;color:white;border:none;border-radius:20px;font-weight:bold;cursor:pointer}
 .refresh-btn:hover{background:#1e4fd6}
-.tabs{display:flex;justify-content:center;gap:8px;padding:10px;background:#1b1b1b;border-bottom:1px solid #333;flex-wrap:wrap}
+.tabs{display:flex;justify-content:center;gap:8px;padding:10px;background:#000;border-bottom:1px solid #333;flex-wrap:wrap}
 .tab-btn{padding:9px 20px;border-radius:20px;border:2px solid #333;background:#1e1e1e;color:#999;font-weight:bold;font-size:14px;cursor:pointer}
 @media (max-width:430px){
   .tabs{gap:6px;padding:8px 4px}
@@ -62,7 +62,7 @@ h1{margin:0;font-size:22px}
 .such-hinweis{max-width:640px;margin:6px auto 0;padding:0 14px;font-size:12px;color:#888;text-align:center}
 .entfernen-btn{background:none;border:none;color:#888;font-size:16px;cursor:pointer;padding:0 0 0 8px}
 .entfernen-btn:hover{color:#f44336}
-.rechner{max-width:640px;margin:12px auto 0;padding:14px;background:#1e1e1e;border:1px solid #2c2c2c;border-radius:12px}
+.rechner{max-width:640px;margin:12px auto 0;padding:14px;background:#000;border:1px solid #333;border-radius:12px}
 .rechner-titel{font-weight:bold;font-size:14px;margin-bottom:10px;color:#ccc;cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px}
 .rechner-pfeil{font-size:12px;color:#888;width:12px;display:inline-block}
 .rechner-body.zu{display:none}
@@ -73,7 +73,7 @@ h1{margin:0;font-size:22px}
 .rechner select{flex:1;min-width:120px}
 .rechner-ergebnis{margin-top:10px;font-size:16px;font-weight:bold;color:#4caf50;text-align:center}
 #liste .coin{cursor:pointer}
-.chart-panel{max-width:640px;margin:12px auto 0;padding:12px;background:#1e1e1e;border:1px solid #2c2c2c;border-radius:12px}
+.chart-panel{max-width:640px;margin:12px auto 0;padding:12px;background:#000;border:1px solid #333;border-radius:12px}
 .chart-kopf{display:flex;justify-content:space-between;align-items:center;font-weight:bold;font-size:15px;margin-bottom:8px}
 .chart-zu{background:none;border:none;color:#888;font-size:16px;cursor:pointer}
 .chart-zu:hover{color:#f44336}
@@ -86,7 +86,7 @@ h1{margin:0;font-size:22px}
 .chart-sub-titel{font-size:12px;color:#999;margin:8px 0 2px;font-weight:bold}
 .chart-live{font-size:11px;font-weight:normal;color:#888;margin-left:8px}
 .chart-live.an{color:#4caf50}
-.signal-box{margin-top:10px;padding:10px 12px;background:#181818;border:1px solid #2c2c2c;border-radius:10px;font-size:13px}
+.signal-box{margin-top:10px;padding:10px 12px;background:#000;border:1px solid #333;border-radius:10px;font-size:13px}
 .signal-titel{font-weight:bold;color:#ccc;margin-bottom:6px}
 .signal-regel{color:#888;margin:2px 0}
 .signal-regel.ok{color:#4caf50}
@@ -96,16 +96,16 @@ h1{margin:0;font-size:22px}
 .chart-btns{display:flex;gap:4px;align-items:center}
 .chart-panel.voll{position:fixed;inset:0;z-index:1000;max-width:none;margin:0;border:none;border-radius:0;overflow:auto}
 .chart-panel.voll #chart-container{height:calc(100vh - 190px)}
-.demo-kopf{max-width:640px;margin:12px auto 0;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;background:#1e1e1e;border:1px solid #2c2c2c;border-radius:12px}
+.demo-kopf{max-width:640px;margin:12px auto 0;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;background:#000;border:1px solid #333;border-radius:12px}
 .demo-kopf>div{display:flex;flex-direction:column}
 .demo-label{font-size:12px;color:#ddd}
 .demo-wert{font-size:16px;font-weight:bold}
 .rechner-zeile button{padding:9px 14px;border-radius:10px;border:none;background:#2962ff;color:#fff;font-weight:bold;cursor:pointer}
 .rechner-zeile button.grau{background:#333}
-.demo-pos{display:flex;align-items:center;gap:12px;background:#1e1e1e;border:1px solid #2c2c2c;border-radius:12px;padding:12px 14px;margin-bottom:8px}
+.demo-pos{display:flex;align-items:center;gap:12px;background:#000;border:1px solid #333;border-radius:12px;padding:12px 14px;margin-bottom:8px}
 .tf-btn.aktiv{background:#2962ff;color:#fff}
 .demo-alarm{max-width:640px;margin:12px auto 0;padding:12px 14px;border:2px solid #ff9800;border-radius:12px;background:#241d10;color:#ffcc80;font-size:14px;line-height:1.5}
-.chart-trade{margin:8px 0;padding:8px;background:#181818;border:1px solid #2c2c2c;border-radius:10px}
+.chart-trade{margin:8px 0;padding:8px;background:#000;border:1px solid #333;border-radius:10px}
 .chart-trade-zeile{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .chart-trade-zeile input{width:90px;padding:8px 10px;border-radius:8px;border:1px solid #333;background:#121212;color:#eee;font-size:14px}
 .chart-trade-zeile button{padding:8px 12px;border-radius:8px;border:none;background:#2962ff;color:#fff;font-weight:bold;cursor:pointer}
@@ -1075,7 +1075,7 @@ function chartOeffnen(symbol){
   if(!chartObj){
     chartObj=LightweightCharts.createChart(document.getElementById('chart-container'),{
       autoSize:true,
-      layout:{background:{color:'#1e1e1e'},textColor:'#ccc',fontSize:14},
+      layout:{background:{color:'#000000'},textColor:'#ccc',fontSize:14},
       grid:{vertLines:{color:'#2c2c2c'},horzLines:{color:'#2c2c2c'}},
       timeScale:{timeVisible:true,borderColor:'#333'},
       rightPriceScale:{borderColor:'#333'},
@@ -1286,7 +1286,7 @@ var syncLaeuft=false;
 function subBasisOptionen(){
   return {
     autoSize:true,
-    layout:{background:{color:'#1e1e1e'},textColor:'#ccc',fontSize:13},
+    layout:{background:{color:'#000000'},textColor:'#ccc',fontSize:13},
     grid:{vertLines:{color:'#2c2c2c'},horzLines:{color:'#2c2c2c'}},
     timeScale:{timeVisible:true,borderColor:'#333'},
     rightPriceScale:{borderColor:'#333'},
@@ -2050,7 +2050,7 @@ function demoChartInit(){
   if(!el||!el.clientWidth)return;
   demoChart=LightweightCharts.createChart(el,{
     autoSize:true,
-    layout:{background:{color:'#1e1e1e'},textColor:'#ccc',fontSize:12},
+    layout:{background:{color:'#000000'},textColor:'#ccc',fontSize:12},
     grid:{vertLines:{color:'#2c2c2c'},horzLines:{color:'#2c2c2c'}},
     timeScale:{timeVisible:true,borderColor:'#333'},
     rightPriceScale:{borderColor:'#333'}
@@ -2105,7 +2105,7 @@ function demoTresorChartInit(){
   if(!el||!el.clientWidth)return;
   demoTresorChart=LightweightCharts.createChart(el,{
     autoSize:true,
-    layout:{background:{color:'#1e1e1e'},textColor:'#ccc',fontSize:12},
+    layout:{background:{color:'#000000'},textColor:'#ccc',fontSize:12},
     grid:{vertLines:{color:'#2c2c2c'},horzLines:{color:'#2c2c2c'}},
     timeScale:{timeVisible:true,borderColor:'#333'},
     rightPriceScale:{borderColor:'#333'}
