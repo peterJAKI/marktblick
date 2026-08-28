@@ -211,6 +211,11 @@ h1{margin:0;font-size:22px}
 <div id="status">⏳ Lade Kurse...</div>
 <div id="liste"></div>
 <button class="refresh-btn" onclick="ladeKurse()">🔄 Aktualisieren</button>
+<div class="rechner" style="max-width:640px">
+<div class="rechner-titel">📰 Krypto-News (auf Deutsch)</div>
+<div id="krypto-news-liste" style="font-size:14px;color:#ccc">⏳ Lade Nachrichten...</div>
+<div style="margin-top:10px;font-size:12px;color:#888">Am ausführlichsten auf Deutsch: <a href="https://www.btc-echo.de/" target="_blank" rel="noopener" style="color:#2962ff;font-weight:bold">BTC-ECHO</a> · <a href="https://de.cointelegraph.com/" target="_blank" rel="noopener" style="color:#2962ff;font-weight:bold">Cointelegraph</a> · <a href="https://www.coindesk.com/de" target="_blank" rel="noopener" style="color:#2962ff;font-weight:bold">CoinDesk</a></div>
+</div>
 </div>
 <div id="ansicht-aktien" style="display:none">
 <div class="suche">
@@ -242,8 +247,9 @@ h1{margin:0;font-size:22px}
 <div id="aktien-status" style="text-align:center;padding:8px;font-size:13px;color:#888">⏳ Lade Aktienkurse...</div>
 <div id="aktien-liste" style="max-width:640px;margin:0 auto;padding:10px"></div>
 <div class="rechner" style="max-width:640px">
-<div class="rechner-titel">📰 Markt-News</div>
+<div class="rechner-titel">📰 Börsen-News (auf Deutsch)</div>
 <div id="news-liste" style="font-size:14px;color:#ccc">⏳ Lade Nachrichten...</div>
+<div style="margin-top:10px;font-size:12px;color:#888">Quelle: tagesschau.de (Wirtschaft/Börse) · Mehr: <a href="https://www.finanzen.net/nachrichten/aktien" target="_blank" rel="noopener" style="color:#2962ff;font-weight:bold">finanzen.net</a> · <a href="https://www.handelsblatt.com/finanzen/" target="_blank" rel="noopener" style="color:#2962ff;font-weight:bold">Handelsblatt</a></div>
 </div>
 </div>
 <div id="ansicht-rohstoffe" style="display:none">
@@ -754,6 +760,8 @@ ladeKurse();
 setInterval(ladeKurse,60000);
 ladeFearGreed();
 setInterval(ladeFearGreed,600000);
+ladeKryptoNews();
+setInterval(ladeKryptoNews,300000);
 
 // --- Aktien ---
 var FINNHUB_KEY='da7nfjpr01qj8fm7nmr0da7nfjpr01qj8fm7nmrg';
@@ -917,34 +925,60 @@ function starteAktienTicker(alleAktien){
   }catch(e){}
 }
 
-async function uebersetzeInsDeutsche(text){
-  try{
-    const res=await fetch('https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=de&dt=t&q='+encodeURIComponent(text));
-    const daten=await res.json();
-    return daten[0].map(function(teil){return teil[0];}).join('');
-  }catch(e){
-    return text;
-  }
+// Deutsche Wirtschafts-/Börsennachrichten von der tagesschau (frei, kein Schlüssel, sendet CORS)
+var tagesschauCache=null, tagesschauZeit=0;
+async function holeWirtschaftsNews(){
+  if(tagesschauCache && Date.now()-tagesschauZeit<300000) return tagesschauCache;
+  const res=await fetch('https://www.tagesschau.de/api2u/news/?ressort=wirtschaft');
+  const daten=await res.json();
+  tagesschauCache=(daten.news||[]).filter(function(n){return n && n.title;});
+  tagesschauZeit=Date.now();
+  return tagesschauCache;
 }
-
+function newsLink(n){ return n.shareURL||n.detailsweb||'#'; }
+function newsDatum(n){
+  try{
+    var d=new Date(n.date);
+    return d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})+' Uhr';
+  }catch(e){ return ''; }
+}
+function renderNews(el,items){
+  if(!items.length){ el.innerText='Zurzeit keine passenden Meldungen.'; return; }
+  var html='';
+  items.forEach(function(n){
+    html+='<div style="padding:9px 0;border-bottom:1px solid #333">'
+      +'<a href="'+newsLink(n)+'" target="_blank" rel="noopener" style="color:#eee;text-decoration:none;font-weight:bold;font-size:14px">'+n.title+'</a>'
+      +'<div style="color:#888;font-size:12px;margin-top:3px">'+(n.topline?n.topline+' · ':'')+'tagesschau · '+newsDatum(n)+'</div>'
+      +'</div>';
+  });
+  el.innerHTML=html;
+}
 async function ladeNews(){
   var el=document.getElementById('news-liste');
   try{
-    const res=await fetch('https://finnhub.io/api/v1/news?category=general&token='+FINNHUB_KEY);
-    const daten=await res.json();
-    var top=daten.slice(0,8);
-    var uebersetzt=await Promise.all(top.map(function(n){return uebersetzeInsDeutsche(n.headline);}));
-    var html='';
-    top.forEach(function(n,i){
-      html+='<div style="padding:9px 0;border-bottom:1px solid #2c2c2c">'
-        +'<a href="'+n.url+'" target="_blank" style="color:#eee;text-decoration:none;font-weight:bold;font-size:14px">'+uebersetzt[i]+'</a>'
-        +'<div style="color:#888;font-size:12px;margin-top:3px">'+n.source+'</div>'
-        +'</div>';
+    var alle=await holeWirtschaftsNews();
+    var boerse=alle.filter(function(n){
+      return /\/wirtschaft\/boerse\//.test(newsLink(n))
+        || /b[öo]rse|aktie|dax|dow|nasdaq|anleger|wall ?street|quartal|dividende|gewinnwarnung|kurs|zins/i.test(n.title);
     });
-    el.innerHTML=html||'Keine Nachrichten verfügbar.';
-  }catch(e){
-    el.innerText='⚠️ Nachrichten konnten nicht geladen werden.';
-  }
+    renderNews(el,(boerse.length?boerse:alle).slice(0,8));
+  }catch(e){ el.innerText='⚠️ Nachrichten konnten nicht geladen werden.'; }
+}
+async function ladeKryptoNews(){
+  var el=document.getElementById('krypto-news-liste');
+  if(!el) return;
+  try{
+    var alle=await holeWirtschaftsNews();
+    var krypto=alle.filter(function(n){
+      var s=n.title+' '+(n.topline||'')+' '+((n.tags||[]).map(function(t){return t.tag||'';}).join(' '));
+      return /krypto|bitcoin|ethereum|kryptow[äa]hrung|blockchain|stablecoin|dogecoin|solana/i.test(s);
+    }).slice(0,6);
+    if(!krypto.length){
+      el.innerHTML='<div style="color:#888;font-size:13px">Bei der tagesschau gerade keine Krypto-Meldung – Aktuelles über die Links unten.</div>';
+      return;
+    }
+    renderNews(el,krypto);
+  }catch(e){ el.innerText='⚠️ Nachrichten konnten nicht geladen werden.'; }
 }
 
 ladeAktien();
