@@ -31,6 +31,11 @@ h1{margin:0;font-size:22px}
 .coin-info{flex:1;min-width:0}
 .coin-name{font-weight:bold;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .coin-symbol{color:#888;font-size:12px;text-transform:uppercase}
+.spark{display:block;margin-top:4px;opacity:.9}
+#fng-box{max-width:640px;margin:0 auto 8px;display:flex;align-items:center;gap:14px;background:#1e1e1e;border:1px solid #2c2c2c;border-radius:12px;padding:12px 14px}
+#fng-ring{width:56px;height:56px;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;color:#888}
+#fng-titel{font-size:12px;color:#888}
+#fng-wert{font-weight:bold;font-size:15px;margin-top:2px}
 .coin-price{text-align:right}
 .price{font-weight:bold;font-size:15px}
 .change{font-size:13px;font-weight:bold;margin-top:2px}
@@ -200,6 +205,7 @@ h1{margin:0;font-size:22px}
 <div class="rechner-ergebnis" id="rechner2-ergebnis"></div>
 </div>
 </div>
+<div id="fng-box"><div id="fng-ring">⏳</div><div id="fng-text"><div id="fng-titel">Markt-Stimmung (Fear &amp; Greed)</div><div id="fng-wert">lädt…</div></div></div>
 <div id="status">⏳ Lade Kurse...</div>
 <div id="liste"></div>
 <button class="refresh-btn" onclick="ladeKurse()">🔄 Aktualisieren</button>
@@ -557,10 +563,46 @@ function aktualisiereZeile(coin){
   }
 }
 
+function sparklineSvg(prices){
+  if(!prices||prices.length<2)return '';
+  var pts=prices.slice(-24);
+  if(pts.length<2)pts=prices.slice(-2);
+  var min=Math.min.apply(null,pts), max=Math.max.apply(null,pts);
+  var span=(max-min)||1, w=64, h=22, n=pts.length;
+  var d=pts.map(function(p,i){
+    var x=(i/(n-1))*w;
+    var y=h-2-((p-min)/span)*(h-4);
+    return (i?'L':'M')+x.toFixed(1)+' '+y.toFixed(1);
+  }).join(' ');
+  var farbe=pts[pts.length-1]>=pts[0]?'#4caf50':'#f44336';
+  return '<svg class="spark" width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'" aria-hidden="true"><path d="'+d+'" fill="none" stroke="'+farbe+'" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+}
+async function ladeFearGreed(){
+  var ringEl=document.getElementById('fng-ring'), wertEl=document.getElementById('fng-wert');
+  if(!ringEl)return;
+  try{
+    const res=await fetch('https://api.alternative.me/fng/?limit=1');
+    const d=await res.json();
+    const e=d&&d.data&&d.data[0];
+    if(!e)throw 0;
+    var wert=parseInt(e.value,10);
+    var kl=e.value_classification||'';
+    var text={'Extreme Fear':'Extreme Angst','Fear':'Angst','Neutral':'Neutral','Greed':'Gier','Extreme Greed':'Extreme Gier'}[kl]||kl;
+    var farbe=/Fear/.test(kl)?'#f44336':(/Greed/.test(kl)?'#4caf50':'#fdd835');
+    var r=24, C=2*Math.PI*r, an=Math.max(0,Math.min(100,wert))/100*C;
+    ringEl.innerHTML='<svg width="56" height="56" viewBox="0 0 56 56">'
+      +'<circle cx="28" cy="28" r="'+r+'" fill="none" stroke="#2c2c2c" stroke-width="6"/>'
+      +'<circle cx="28" cy="28" r="'+r+'" fill="none" stroke="'+farbe+'" stroke-width="6" stroke-linecap="round" stroke-dasharray="'+an.toFixed(1)+' '+C.toFixed(1)+'" transform="rotate(-90 28 28)"/>'
+      +'<text x="28" y="33" text-anchor="middle" fill="#eee" font-size="16" font-weight="bold">'+wert+'</text></svg>';
+    wertEl.innerHTML='<span style="color:'+farbe+'">'+text+'</span> ('+wert+'/100)';
+  }catch(e){
+    if(wertEl)wertEl.textContent='gerade nicht verfügbar';
+  }
+}
 async function ladeKurse(){
   document.getElementById('status').innerText='⏳ Lade Kurse...';
   try{
-    const topUrl='https://api.coingecko.com/api/v3/coins/markets?vs_currency=eur&order=market_cap_desc&per_page=20&page=1&sparkline=false&price_change_percentage=24h';
+    const topUrl='https://api.coingecko.com/api/v3/coins/markets?vs_currency=eur&order=market_cap_desc&per_page=20&page=1&sparkline=true&price_change_percentage=24h';
     const topRes=await fetch(topUrl);
     if(!topRes.ok)throw new Error('API-Fehler');
     let coins=await topRes.json();
@@ -569,7 +611,7 @@ async function ladeKurse(){
     var vorhandeneIds=coins.map(function(c){return c.id;});
     var fehlendeEigene=eigene.filter(function(id){return !vorhandeneIds.includes(id);});
     if(fehlendeEigene.length>0){
-      const eigeneUrl='https://api.coingecko.com/api/v3/coins/markets?vs_currency=eur&ids='+fehlendeEigene.join(',')+'&sparkline=false&price_change_percentage=24h';
+      const eigeneUrl='https://api.coingecko.com/api/v3/coins/markets?vs_currency=eur&ids='+fehlendeEigene.join(',')+'&sparkline=true&price_change_percentage=24h';
       const eigeneRes=await fetch(eigeneUrl);
       if(eigeneRes.ok){
         var eigeneCoins=await eigeneRes.json();
@@ -590,7 +632,7 @@ async function ladeKurse(){
       var istEigen=eigene.includes(c.id);
       html+='<div class="coin'+(c.id==='bitcoin'?' btc':'')+'" id="row-'+c.id+'" onclick="coinRowKlick(\''+c.symbol.toUpperCase()+'\')">'
         +'<img src="'+c.image+'" alt="'+c.symbol+'">'
-        +'<div class="coin-info"><div class="coin-name">'+c.name+'</div><div class="coin-symbol">'+c.symbol+'</div></div>'
+        +'<div class="coin-info"><div class="coin-name">'+c.name+'</div><div class="coin-symbol">'+c.symbol+'</div>'+sparklineSvg(c.sparkline_in_7d&&c.sparkline_in_7d.price)+'</div>'
         +'<div class="coin-price"><div class="price" id="preis-'+c.id+'">'+preis+' €</div><div class="change '+a.klasse+'" id="change-'+c.id+'">'+a.text+'</div></div>'
         +(istEigen?'<button class="entfernen-btn" onclick="event.stopPropagation();coinEntfernen(\''+c.id+'\')" title="Entfernen">✕</button>':'')
         +'</div>';
@@ -695,6 +737,8 @@ function starteLiveTicker(liveKandidaten){
 
 ladeKurse();
 setInterval(ladeKurse,60000);
+ladeFearGreed();
+setInterval(ladeFearGreed,600000);
 
 // --- Aktien ---
 var FINNHUB_KEY='da7nfjpr01qj8fm7nmr0da7nfjpr01qj8fm7nmrg';
