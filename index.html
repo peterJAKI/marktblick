@@ -622,7 +622,7 @@ async function ladeFearGreed(){
 async function ladeKurse(){
   document.getElementById('status').innerText='⏳ Lade Kurse...';
   try{
-    const topUrl='https://api.coingecko.com/api/v3/coins/markets?vs_currency=eur&order=market_cap_desc&per_page=20&page=1&sparkline=true&price_change_percentage=24h';
+    const topUrl='https://api.coingecko.com/api/v3/coins/markets?vs_currency=eur&order=market_cap_desc&per_page=50&page=1&sparkline=true&price_change_percentage=24h';
     const topRes=await fetch(topUrl);
     if(!topRes.ok)throw new Error('API-Fehler');
     let coins=await topRes.json();
