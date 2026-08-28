@@ -28,10 +28,11 @@ h1{margin:0;font-size:22px}
 .coin{display:flex;align-items:center;gap:12px;background:#1e1e1e;border-radius:12px;padding:12px 14px;margin-bottom:8px;border:1px solid #2c2c2c}
 .coin.btc{border-color:#f7931a;box-shadow:0 0 12px rgba(247,147,26,0.25)}
 .coin img{width:32px;height:32px;border-radius:50%}
-.coin-info{flex:1;min-width:0}
+.coin-info{flex:0 1 auto;min-width:72px;max-width:40%}
 .coin-name{font-weight:bold;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .coin-symbol{color:#888;font-size:12px;text-transform:uppercase}
-.spark{display:block;margin-top:4px;opacity:.9}
+.coin-spark{flex:1 1 auto;min-width:44px;max-width:200px;align-self:center;line-height:0}
+.coin-spark .spark{width:100%;height:40px;display:block}
 #fng-box{max-width:640px;margin:0 auto 8px;display:flex;align-items:center;gap:14px;background:#1e1e1e;border:1px solid #2c2c2c;border-radius:12px;padding:12px 14px}
 #fng-ring{width:56px;height:56px;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;color:#888}
 #fng-titel{font-size:12px;color:#888}
@@ -563,19 +564,30 @@ function aktualisiereZeile(coin){
   }
 }
 
-function sparklineSvg(prices){
+function sparklineSvg(prices,uid){
   if(!prices||prices.length<2)return '';
   var pts=prices.slice(-24);
   if(pts.length<2)pts=prices.slice(-2);
   var min=Math.min.apply(null,pts), max=Math.max.apply(null,pts);
-  var span=(max-min)||1, w=64, h=22, n=pts.length;
-  var d=pts.map(function(p,i){
-    var x=(i/(n-1))*w;
-    var y=h-2-((p-min)/span)*(h-4);
-    return (i?'L':'M')+x.toFixed(1)+' '+y.toFixed(1);
-  }).join(' ');
-  var farbe=pts[pts.length-1]>=pts[0]?'#4caf50':'#f44336';
-  return '<svg class="spark" width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'" aria-hidden="true"><path d="'+d+'" fill="none" stroke="'+farbe+'" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+  var span=(max-min)||1, W=240, H=40, pad=3, n=pts.length;
+  var xy=pts.map(function(p,i){return {x:(i/(n-1))*W, y:H-pad-((p-min)/span)*(H-2*pad)};});
+  var d='M'+xy[0].x.toFixed(1)+' '+xy[0].y.toFixed(1);
+  for(var i=0;i<n-1;i++){
+    var p0=xy[i-1]||xy[i], p1=xy[i], p2=xy[i+1], p3=xy[i+2]||p2;
+    var c1x=p1.x+(p2.x-p0.x)/6, c1y=p1.y+(p2.y-p0.y)/6;
+    var c2x=p2.x-(p3.x-p1.x)/6, c2y=p2.y-(p3.y-p1.y)/6;
+    d+=' C'+c1x.toFixed(1)+' '+c1y.toFixed(1)+' '+c2x.toFixed(1)+' '+c2y.toFixed(1)+' '+p2.x.toFixed(1)+' '+p2.y.toFixed(1);
+  }
+  var up=pts[pts.length-1]>=pts[0], farbe=up?'#4caf50':'#f44336';
+  var gid='sg-'+(uid||'x')+'-'+(up?'u':'d');
+  var flaeche=d+' L'+W+' '+H+' L0 '+H+' Z';
+  return '<svg class="spark" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" aria-hidden="true">'
+    +'<defs><linearGradient id="'+gid+'" x1="0" y1="0" x2="0" y2="1">'
+    +'<stop offset="0" stop-color="'+farbe+'" stop-opacity="0.35"/>'
+    +'<stop offset="1" stop-color="'+farbe+'" stop-opacity="0"/></linearGradient></defs>'
+    +'<path d="'+flaeche+'" fill="url(#'+gid+')" stroke="none"/>'
+    +'<path d="'+d+'" fill="none" stroke="'+farbe+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>'
+    +'</svg>';
 }
 async function ladeFearGreed(){
   var ringEl=document.getElementById('fng-ring'), wertEl=document.getElementById('fng-wert');
@@ -632,7 +644,8 @@ async function ladeKurse(){
       var istEigen=eigene.includes(c.id);
       html+='<div class="coin'+(c.id==='bitcoin'?' btc':'')+'" id="row-'+c.id+'" onclick="coinRowKlick(\''+c.symbol.toUpperCase()+'\')">'
         +'<img src="'+c.image+'" alt="'+c.symbol+'">'
-        +'<div class="coin-info"><div class="coin-name">'+c.name+'</div><div class="coin-symbol">'+c.symbol+'</div>'+sparklineSvg(c.sparkline_in_7d&&c.sparkline_in_7d.price)+'</div>'
+        +'<div class="coin-info"><div class="coin-name">'+c.name+'</div><div class="coin-symbol">'+c.symbol+'</div></div>'
+        +'<div class="coin-spark">'+sparklineSvg(c.sparkline_in_7d&&c.sparkline_in_7d.price,c.id)+'</div>'
         +'<div class="coin-price"><div class="price" id="preis-'+c.id+'">'+preis+' €</div><div class="change '+a.klasse+'" id="change-'+c.id+'">'+a.text+'</div></div>'
         +(istEigen?'<button class="entfernen-btn" onclick="event.stopPropagation();coinEntfernen(\''+c.id+'\')" title="Entfernen">✕</button>':'')
         +'</div>';
