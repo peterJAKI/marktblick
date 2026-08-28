@@ -565,7 +565,7 @@ function aktualisiereZeile(coin){
   }
 }
 
-function sparklineSvg(prices,uid){
+function sparklineSvg(prices,uid,chg){
   if(!prices||prices.length<2)return '';
   var pts=prices.slice(-24);
   if(pts.length<2)pts=prices.slice(-2);
@@ -579,8 +579,9 @@ function sparklineSvg(prices,uid){
     var c2x=p2.x-(p3.x-p1.x)/6, c2y=p2.y-(p3.y-p1.y)/6;
     d+=' C'+c1x.toFixed(1)+' '+c1y.toFixed(1)+' '+c2x.toFixed(1)+' '+c2y.toFixed(1)+' '+p2.x.toFixed(1)+' '+p2.y.toFixed(1);
   }
-  var up=pts[pts.length-1]>=pts[0], farbe=up?'#4caf50':'#f44336';
-  var gid='sg-'+(uid||'x')+'-'+(up?'u':'d');
+  var minus=(chg!=null?chg<0:pts[pts.length-1]<pts[0]);
+  var farbe=minus?'#f44336':'#2962ff';
+  var gid='sg-'+(uid||'x')+'-'+(minus?'d':'u');
   var flaeche=d+' L'+W+' '+H+' L0 '+H+' Z';
   return '<svg class="spark" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" aria-hidden="true">'
     +'<defs><linearGradient id="'+gid+'" x1="0" y1="0" x2="0" y2="1">'
@@ -646,7 +647,7 @@ async function ladeKurse(){
       html+='<div class="coin'+(c.id==='bitcoin'?' btc':'')+'" id="row-'+c.id+'" onclick="coinRowKlick(\''+c.symbol.toUpperCase()+'\')">'
         +'<img src="'+c.image+'" alt="'+c.symbol+'">'
         +'<div class="coin-info"><div class="coin-name">'+c.name+'</div><div class="coin-symbol">'+c.symbol+'</div></div>'
-        +'<div class="coin-spark">'+sparklineSvg(c.sparkline_in_7d&&c.sparkline_in_7d.price,c.id)+'</div>'
+        +'<div class="coin-spark">'+sparklineSvg(c.sparkline_in_7d&&c.sparkline_in_7d.price,c.id,c.price_change_percentage_24h)+'</div>'
         +'<div class="coin-price"><div class="price" id="preis-'+c.id+'">'+preis+' €</div><div class="change '+a.klasse+'" id="change-'+c.id+'">'+a.text+'</div></div>'
         +(istEigen?'<button class="entfernen-btn" onclick="event.stopPropagation();coinEntfernen(\''+c.id+'\')" title="Entfernen">✕</button>':'')
         +'</div>';
