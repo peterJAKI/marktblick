@@ -622,7 +622,7 @@ async function ladeFearGreed(){
 async function ladeKurse(){
   document.getElementById('status').innerText='⏳ Lade Kurse...';
   try{
-    const topUrl='https://api.coingecko.com/api/v3/coins/markets?vs_currency=eur&order=market_cap_desc&per_page=50&page=1&sparkline=true&price_change_percentage=24h';
+    const topUrl='https://api.coingecko.com/api/v3/coins/markets?vs_currency=eur&order=market_cap_desc&per_page=100&page=1&sparkline=true&price_change_percentage=24h';
     const topRes=await fetch(topUrl);
     if(!topRes.ok)throw new Error('API-Fehler');
     let coins=await topRes.json();
@@ -639,11 +639,35 @@ async function ladeKurse(){
       }
     }
 
+    // Angesagte / neue Coins (aktuell meistgesucht bei CoinGecko) dazuholen, mit 🔥 markieren
+    var trendIds=[];
+    try{
+      const trendRes=await fetch('https://api.coingecko.com/api/v3/search/trending');
+      if(trendRes.ok){
+        var trendDaten=await trendRes.json();
+        trendIds=(trendDaten.coins||[]).map(function(x){return x.item&&x.item.id;}).filter(Boolean);
+        var schonDa=coins.map(function(c){return c.id;});
+        var fehlendTrend=trendIds.filter(function(id){return schonDa.indexOf(id)<0;});
+        if(fehlendTrend.length>0){
+          const tRes=await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=eur&ids='+fehlendTrend.join(',')+'&sparkline=true&price_change_percentage=24h');
+          if(tRes.ok){ coins=coins.concat(await tRes.json()); }
+        }
+      }
+    }catch(e){}
+    var trendSet={}; trendIds.forEach(function(id){trendSet[id]=1;});
+
+    // doppelte raus, unpreisbare raus
+    var gesehen={};
+    coins=coins.filter(function(c){
+      if(!c||typeof c.current_price!=='number'||gesehen[c.id])return false;
+      gesehen[c.id]=1; return true;
+    });
+
     // Bitcoin immer nach oben, Rest bleibt nach Marktkapitalisierung sortiert
     coins.sort((a,b)=>{
       if(a.id==='bitcoin')return -1;
       if(b.id==='bitcoin')return 1;
-      return b.market_cap-a.market_cap;
+      return (b.market_cap||0)-(a.market_cap||0);
     });
     var html='';
     coins.forEach(c=>{
@@ -652,7 +676,7 @@ async function ladeKurse(){
       var istEigen=eigene.includes(c.id);
       html+='<div class="coin'+(c.id==='bitcoin'?' btc':'')+'" id="row-'+c.id+'" onclick="coinRowKlick(\''+c.symbol.toUpperCase()+'\')">'
         +'<img src="'+c.image+'" alt="'+c.symbol+'">'
-        +'<div class="coin-info"><div class="coin-name">'+c.name+'</div><div class="coin-symbol">'+c.symbol+'</div></div>'
+        +'<div class="coin-info"><div class="coin-name">'+(trendSet[c.id]?'🔥 ':'')+c.name+'</div><div class="coin-symbol">'+c.symbol+'</div></div>'
         +'<div class="coin-spark">'+sparklineSvg(c.sparkline_in_7d&&c.sparkline_in_7d.price,c.id,c.price_change_percentage_24h)+'</div>'
         +'<div class="coin-price"><div class="price" id="preis-'+c.id+'">'+preis+' €</div><div class="change '+a.klasse+'" id="change-'+c.id+'">'+a.text+'</div></div>'
         +(istEigen?'<button class="entfernen-btn" onclick="event.stopPropagation();coinEntfernen(\''+c.id+'\')" title="Entfernen">✕</button>':'')
