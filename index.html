@@ -131,6 +131,13 @@ h1{margin:0;font-size:22px}
 </div>
 <div class="such-hinweis" id="such-status"></div>
 <div class="such-hinweis">👆 Tippe auf einen Coin für den Kerzenchart.</div>
+<div class="rechner">
+<div class="rechner-titel" id="titel-knews" onclick="rechnerUmschalten('knews')"><span class="rechner-pfeil" id="pfeil-knews">▸</span>📰 Krypto-News (auf Deutsch)</div>
+<div class="rechner-body" id="body-knews">
+<div id="krypto-news-liste" style="font-size:14px;color:#ccc">⏳ Lade Nachrichten...</div>
+<div style="margin-top:10px;font-size:12px;color:#888">Am ausführlichsten auf Deutsch: <a href="https://www.btc-echo.de/" target="_blank" rel="noopener" style="color:#2962ff;font-weight:bold">BTC-ECHO</a> · <a href="https://de.cointelegraph.com/" target="_blank" rel="noopener" style="color:#2962ff;font-weight:bold">Cointelegraph</a> · <a href="https://www.coindesk.com/de" target="_blank" rel="noopener" style="color:#2962ff;font-weight:bold">CoinDesk</a></div>
+</div>
+</div>
 <div class="chart-panel" id="chart-panel" style="display:none">
 <div class="chart-kopf"><span><span id="chart-titel">—</span><span class="chart-live" id="chart-live">–</span></span><span class="chart-btns"><button class="chart-zu" id="chart-voll-btn" onclick="chartVollbild()" title="Vollbild">⛶</button><button class="chart-zu" onclick="chartSchliessen()" title="Schließen">✕</button></span></div>
 <div class="chart-zeitrahmen">
@@ -211,11 +218,6 @@ h1{margin:0;font-size:22px}
 <div id="status">⏳ Lade Kurse...</div>
 <div id="liste"></div>
 <button class="refresh-btn" onclick="ladeKurse()">🔄 Aktualisieren</button>
-<div class="rechner" style="max-width:640px">
-<div class="rechner-titel">📰 Krypto-News (auf Deutsch)</div>
-<div id="krypto-news-liste" style="font-size:14px;color:#ccc">⏳ Lade Nachrichten...</div>
-<div style="margin-top:10px;font-size:12px;color:#888">Am ausführlichsten auf Deutsch: <a href="https://www.btc-echo.de/" target="_blank" rel="noopener" style="color:#2962ff;font-weight:bold">BTC-ECHO</a> · <a href="https://de.cointelegraph.com/" target="_blank" rel="noopener" style="color:#2962ff;font-weight:bold">Cointelegraph</a> · <a href="https://www.coindesk.com/de" target="_blank" rel="noopener" style="color:#2962ff;font-weight:bold">CoinDesk</a></div>
-</div>
 </div>
 <div id="ansicht-aktien" style="display:none">
 <div class="suche">
@@ -223,6 +225,13 @@ h1{margin:0;font-size:22px}
 <button onclick="aktieHinzufuegen()">➕ Hinzufügen</button>
 </div>
 <div class="such-hinweis" id="aktien-such-status"></div>
+<div class="rechner">
+<div class="rechner-titel" id="titel-anews" onclick="rechnerUmschalten('anews')"><span class="rechner-pfeil" id="pfeil-anews">▸</span>📰 Börsen-News (auf Deutsch)</div>
+<div class="rechner-body" id="body-anews">
+<div id="news-liste" style="font-size:14px;color:#ccc">⏳ Lade Nachrichten...</div>
+<div style="margin-top:10px;font-size:12px;color:#888">Quelle: tagesschau.de (Wirtschaft/Börse) · Mehr: <a href="https://www.finanzen.net/nachrichten/aktien" target="_blank" rel="noopener" style="color:#2962ff;font-weight:bold">finanzen.net</a> · <a href="https://www.handelsblatt.com/finanzen/" target="_blank" rel="noopener" style="color:#2962ff;font-weight:bold">Handelsblatt</a></div>
+</div>
+</div>
 <div class="rechner">
 <div class="rechner-titel" id="titel-ak1" onclick="rechnerUmschalten('ak1')"><span class="rechner-pfeil" id="pfeil-ak1">▾</span>💵 Wie viele Aktien bekomme ich für mein Geld?</div>
 <div class="rechner-body" id="body-ak1">
@@ -246,11 +255,6 @@ h1{margin:0;font-size:22px}
 </div>
 <div id="aktien-status" style="text-align:center;padding:8px;font-size:13px;color:#888">⏳ Lade Aktienkurse...</div>
 <div id="aktien-liste" style="max-width:640px;margin:0 auto;padding:10px"></div>
-<div class="rechner" style="max-width:640px">
-<div class="rechner-titel">📰 Börsen-News (auf Deutsch)</div>
-<div id="news-liste" style="font-size:14px;color:#ccc">⏳ Lade Nachrichten...</div>
-<div style="margin-top:10px;font-size:12px;color:#888">Quelle: tagesschau.de (Wirtschaft/Börse) · Mehr: <a href="https://www.finanzen.net/nachrichten/aktien" target="_blank" rel="noopener" style="color:#2962ff;font-weight:bold">finanzen.net</a> · <a href="https://www.handelsblatt.com/finanzen/" target="_blank" rel="noopener" style="color:#2962ff;font-weight:bold">Handelsblatt</a></div>
-</div>
 </div>
 <div id="ansicht-rohstoffe" style="display:none">
 <div class="such-hinweis">ℹ️ Begrenztes Gratis-Kontingent – bitte nicht zu oft aktualisieren (max. ca. 4x am Tag). Weizen/Zucker/Mais/Kupfer sind Monatswerte, Gold/Silber sind aktuell.</div>
@@ -477,8 +481,8 @@ function rechnerUmschalten(id){
   localStorage.setItem('mb_rechner_zu',JSON.stringify(z));
   wendeRechnerZustandAn(id);
 }
-(function(){var z=rechnerZustand();var ch=false;if(z.dgv===undefined){z.dgv=true;ch=true;}if(z.dtr===undefined){z.dtr=true;ch=true;}if(z.dtf===undefined){z.dtf=true;ch=true;}if(ch)localStorage.setItem('mb_rechner_zu',JSON.stringify(z));})();
-['kr1','kr2','ak1','ak2','dgv','dtr','dst','dvl','dtf'].forEach(wendeRechnerZustandAn);
+(function(){var z=rechnerZustand();var ch=false;['dgv','dtr','dtf','knews','anews'].forEach(function(k){if(z[k]===undefined){z[k]=true;ch=true;}});if(ch)localStorage.setItem('mb_rechner_zu',JSON.stringify(z));})();
+['kr1','kr2','ak1','ak2','dgv','dtr','dst','dvl','dtf','knews','anews'].forEach(wendeRechnerZustandAn);
 function demoGvUmschalten(){
   rechnerUmschalten('dgv');
   if(!rechnerZustand().dgv){setTimeout(function(){demoWerteAktualisieren();},40);}
