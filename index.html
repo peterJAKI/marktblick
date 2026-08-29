@@ -366,6 +366,22 @@ h1{margin:0;font-size:22px}
 <div class="rechner-ergebnis" id="demo-verkauf-info"></div>
 </div>
 <div class="rechner">
+<div class="rechner-titel">🎯 Limit-Orders — zu deinem Wunschpreis kaufen/verkaufen</div>
+<div id="demo-limit-liste" style="font-size:13px;margin-bottom:8px"></div>
+<div class="rechner-zeile">
+<select id="demo-limit-coin"></select>
+<select id="demo-limit-typ"><option value="BUY">🟢 Kaufen, wenn Kurs fällt bis…</option><option value="SELL">🔴 Verkaufen, wenn Kurs steigt bis…</option></select>
+</div>
+<div class="rechner-zeile">
+<span>Zielpreis</span><input type="number" id="demo-limit-preis" placeholder="€" step="any" style="width:110px"><span>€ · Menge</span><input type="number" id="demo-limit-menge" placeholder="Anzahl Coins" step="any" style="width:120px">
+</div>
+<div class="rechner-zeile">
+<button onclick="demoLimitOrderAnlegen()">Order anlegen</button>
+</div>
+<div class="rechner-ergebnis" id="demo-limit-info" style="text-align:left;font-weight:normal;font-size:13px;color:#ccc"></div>
+<div class="signal-hinweis">Die Order liegt bereit und wird bei jedem Kurs-Update geprüft. <b>Kaufen</b> löst aus, sobald der Kurs auf den Zielpreis oder darunter fällt; <b>Verkaufen</b>, sobald er auf den Zielpreis oder darüber steigt – ausgeführt wird zum dann gültigen Kurs (mindestens so gut wie dein Zielpreis). Gebühr für Limit-Orders: nur <b>0,1 %</b> (Market-Orders: siehe Gebühren-Simulation). Beim Kaufen wird das Guthaben erst beim Auslösen belastet – reicht es dann nicht, wird die Order storniert. Menge = Anzahl Coins.</div>
+</div>
+<div class="rechner">
 <div class="rechner-titel">🔻 Short — auf fallende Kurse setzen</div>
 <div class="rechner-zeile">
 <select id="demo-short-coin" onchange="demoShortVorschau()"></select>
@@ -1542,8 +1558,9 @@ function demoLaden(){
   var d=localStorage.getItem('mb_demo');
   var x={bar:DEMO_START,positionen:{},verlauf:[]};
   if(d){try{var y=JSON.parse(d);if(y&&typeof y.bar==='number')x=y;}catch(e){}}
-  if(typeof x.gebuehrProzent!=='number')x.gebuehrProzent=1.0;
-  if(typeof x.gebuehrMin!=='number')x.gebuehrMin=0.99;
+  if(typeof x.gebuehrProzent!=='number')x.gebuehrProzent=0.4;
+  if(typeof x.gebuehrMin!=='number')x.gebuehrMin=0;
+  if(!Array.isArray(x.limitOrders))x.limitOrders=[];
   if(typeof x.zielGewinn!=='number')x.zielGewinn=2;
   if(typeof x.maxVerlust!=='number')x.maxVerlust=1;
   if(typeof x.signalTf!=='string')x.signalTf='5m';
@@ -1616,9 +1633,9 @@ function demoGebuehrInfo(){
   if(hz&&document.activeElement!==hz)hz.value=depot.handelsziel;
   var as=document.getElementById('demo-autosichern');if(as)as.checked=!!depot.autoSichern;
   var ax=document.getElementById('demo-autostop');if(ax)ax.checked=!!depot.autoStop;
-  el.innerHTML='Wird bei <b>Kauf und Verkauf</b> abgezogen – deckt Broker-Gebühr + Spread (Auf-/Abschlag beim Kurs) ab.<br>'
+  el.innerHTML='Gilt für <b>Market-Orders</b> (Sofort-Kauf/-Verkauf), abgezogen bei Kauf und Verkauf – deckt Broker-Gebühr + Spread ab. <b>Limit-Orders kosten pauschal 0,1 %.</b><br>'
     +'Richtwerte: Krypto-Broker (Bitpanda, Coinbase, eToro) ca. <b>1–1,5 %</b>, oft mit Mindestgebühr ~1 €. '
-    +'Krypto-Börsen (Binance, Kraken, Bitvavo) ca. <b>0,1–0,4 %</b>. Jeder Anbieter rechnet anders – das hier ist eine Schätzung.';
+    +'Krypto-Börsen (Binance, Kraken, Bitvavo) ca. <b>0,1–0,4 %</b> (Standard hier: 0,4 %). Jeder Anbieter rechnet anders – das hier ist eine Schätzung.';
 }
 
 function demoFormulareAufbauen(){
@@ -1632,7 +1649,7 @@ function demoFormulareAufbauen(){
   var gehalten=Object.keys(depot.positionen).filter(function(id){return depot.positionen[id].menge>1e-12;});
   verkSel.innerHTML=gehalten.length?gehalten.map(function(id){return '<option value="'+id+'">'+demoName(id)+'</option>';}).join(''):'<option value="">— keine Positionen —</option>';
   if(vV&&gehalten.indexOf(vV)>=0)verkSel.value=vV;
-  ['demo-short-coin','demo-bot-coin'].forEach(function(selId){
+  ['demo-short-coin','demo-bot-coin','demo-limit-coin'].forEach(function(selId){
     var sel=document.getElementById(selId);
     if(!sel)return;
     var v=sel.value;
@@ -1643,6 +1660,7 @@ function demoFormulareAufbauen(){
   demoKaufVorschau();
   demoShortVorschau();
   demoBotListeZeigen();
+  demoLimitListeZeigen();
 }
 
 function demoKaufVorschau(){
@@ -1900,6 +1918,129 @@ function demoBotListeZeigen(){
 // beim Laden: für jede laufende Automatik den Prüf-Timer setzen
 (function(){ (demoLaden().bots||[]).forEach(function(b){demoBotTimerSetzen(b.id,b.pruefMin||5);demoBotMaxTimerSetzen(b);}); })();
 
+// --- Limit-Orders (Demo) ---
+var DEMO_LIMIT_GEBUEHR_PROZENT=0.1; // Gebühr für ausgeführte Limit-Orders
+var demoLimitLaeuft=false;
+function demoLimitListeZeigen(){
+  var el=document.getElementById('demo-limit-liste');
+  if(!el)return;
+  var offen=(demoLaden().limitOrders||[]).filter(function(o){return o.status==='OFFEN';});
+  if(!offen.length){el.innerHTML='<span style="color:#ddd">Keine offene Limit-Order. Unten eine anlegen.</span>';return;}
+  el.innerHTML='<b>Wartet auf den Kurs:</b>'+offen.map(function(o){
+    var kurs=demoPreis(o.coinId);
+    var jetzt=(kurs!=null)?' · Kurs jetzt '+formatierePreis(kurs)+' €':'';
+    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:3px 0">'
+      +'<span>'+(o.typ==='BUY'?'🟢 Kaufen':'🔴 Verkaufen')+' <b>'+mengeTxt(o.menge)+' '+demoName(o.coinId)+'</b> bei '+formatierePreis(o.zielPreis)+' €'+jetzt+'</span>'
+      +'<button class="grau" style="padding:4px 10px" onclick="demoLimitOrderStorno(\''+o.id+'\')">✕ Abbrechen</button></div>';
+  }).join('');
+}
+function demoLimitOrderAnlegen(){
+  var depot=demoLaden();
+  var id=document.getElementById('demo-limit-coin').value;
+  var typ=document.getElementById('demo-limit-typ').value;
+  var preis=parseFloat(document.getElementById('demo-limit-preis').value);
+  var menge=parseFloat(document.getElementById('demo-limit-menge').value);
+  var el=document.getElementById('demo-limit-info');
+  if(!id){el.textContent='⚠️ Coin wählen.';return;}
+  if(!preis||preis<=0){el.textContent='⚠️ Zielpreis in € eingeben.';return;}
+  if(!menge||menge<=0){el.textContent='⚠️ Menge (Anzahl Coins) eingeben.';return;}
+  if((depot.bots||[]).some(function(b){return b.coinId===id;})){el.textContent='⚠️ Für '+demoName(id)+' läuft eine Automatik – erst stoppen.';return;}
+  var kurs=demoPreis(id);
+  if(typ==='SELL'){
+    var pos=depot.positionen[id];
+    if(!pos||pos.menge<menge-1e-9){el.textContent='⚠️ Du hast nur '+mengeTxt(pos?pos.menge:0)+' '+demoName(id)+' – eine Verkauf-Order kann nicht größer sein.';return;}
+  }else{
+    var kostenGrob=menge*(kurs||preis);
+    if(kostenGrob>depot.bar){el.textContent='⚠️ Grob '+eur(kostenGrob)+' nötig, frei sind '+eur(depot.bar)+'. (Belastet wird erst beim Auslösen.)';return;}
+  }
+  var o={id:'lo'+Date.now()+Math.floor(Math.random()*1000),coinId:id,typ:typ,zielPreis:preis,menge:menge,status:'OFFEN',angelegt:Date.now()};
+  depot.limitOrders=depot.limitOrders||[];
+  depot.limitOrders.push(o);
+  demoSpeichern(depot);
+  var hinweis='';
+  if(kurs!=null){
+    if(typ==='BUY'&&kurs<=preis)hinweis=' Der Kurs liegt schon darunter – wird beim nächsten Kurs-Update ausgeführt.';
+    if(typ==='SELL'&&kurs>=preis)hinweis=' Der Kurs liegt schon darüber – wird beim nächsten Kurs-Update ausgeführt.';
+  }
+  el.textContent='✅ Limit-Order angelegt: '+(typ==='BUY'?'Kaufen':'Verkaufen')+' '+mengeTxt(menge)+' '+demoName(id)+' bei '+formatierePreis(preis)+' €.'+hinweis;
+  document.getElementById('demo-limit-preis').value='';
+  document.getElementById('demo-limit-menge').value='';
+  demoLimitListeZeigen();
+  demoLimitOrdersPruefen();
+}
+function demoLimitOrderStorno(oid){
+  var depot=demoLaden();
+  depot.limitOrders=(depot.limitOrders||[]).filter(function(o){return !(o.id===oid&&o.status==='OFFEN');});
+  demoSpeichern(depot);
+  var el=document.getElementById('demo-limit-info');if(el)el.textContent='Limit-Order abgebrochen.';
+  demoLimitListeZeigen();
+}
+function demoLimitOrdersPruefen(){
+  if(demoLimitLaeuft)return;
+  demoLimitLaeuft=true;
+  try{
+    var depot=demoLaden();
+    var offen=(depot.limitOrders||[]).filter(function(o){return o.status==='OFFEN';});
+    if(!offen.length){demoLimitLaeuft=false;return;}
+    var geaendert=false;
+    offen.forEach(function(o){
+      var kurs=demoPreis(o.coinId);
+      if(kurs==null)return;
+      var trigger=(o.typ==='BUY')?(kurs<=o.zielPreis):(kurs>=o.zielPreis);
+      if(!trigger)return;
+      var fp=kurs; // Ausführung mindestens so gut wie der Zielpreis
+      if(o.typ==='BUY'){
+        var brutto=o.menge*fp;
+        var geb=brutto*DEMO_LIMIT_GEBUEHR_PROZENT/100;
+        if(brutto+geb>depot.bar+1e-9){
+          o.status='STORNIERT';o.grund='zu wenig Guthaben';
+          demoBotAlarm('❌ Limit-Kauf '+demoName(o.coinId)+' storniert – Guthaben reicht nicht ('+eur(depot.bar)+' frei, '+eur(brutto+geb)+' nötig).');
+          geaendert=true;return;
+        }
+        if(!depot.positionen[o.coinId])depot.positionen[o.coinId]={menge:0,kosten:0};
+        depot.positionen[o.coinId].menge+=o.menge;
+        depot.positionen[o.coinId].kosten+=brutto+geb;
+        depot.bar-=brutto+geb;
+        depot.verlauf.unshift({zeit:Date.now(),art:'limit-kauf',name:demoName(o.coinId),menge:o.menge,preis:fp,betrag:brutto+geb,gebuehr:geb});
+        o.status='AUSGEFUEHRT';o.ausgefuehrt=Date.now();o.fuellPreis=fp;
+        geaendert=true;
+        demoBotAlarm('🎯 Limit-Kauf ausgeführt: '+mengeTxt(o.menge)+' '+demoName(o.coinId)+' zu '+formatierePreis(fp)+' € (Gebühr '+eur(geb)+').');
+      }else{
+        var pos=depot.positionen[o.coinId];
+        if(!pos||pos.menge<o.menge-1e-9){
+          o.status='STORNIERT';o.grund='nicht genug Bestand';
+          demoBotAlarm('❌ Limit-Verkauf '+demoName(o.coinId)+' storniert – Bestand reicht nicht mehr.');
+          geaendert=true;return;
+        }
+        var bruttoS=o.menge*fp;
+        var gebS=bruttoS*DEMO_LIMIT_GEBUEHR_PROZENT/100;
+        var netto=Math.max(bruttoS-gebS,0);
+        var kostenanteil=pos.menge>0?pos.kosten*(o.menge/pos.menge):0;
+        pos.menge-=o.menge;pos.kosten-=kostenanteil;
+        if(pos.menge<=1e-12)delete depot.positionen[o.coinId];
+        depot.bar+=netto;
+        var gv=netto-kostenanteil;
+        depot.verlauf.unshift({zeit:Date.now(),art:'limit-verkauf',name:demoName(o.coinId),menge:o.menge,preis:fp,betrag:netto,brutto:bruttoS,gebuehr:gebS,gv:gv});
+        demoAutoTresor(depot,gv);
+        o.status='AUSGEFUEHRT';o.ausgefuehrt=Date.now();o.fuellPreis=fp;
+        geaendert=true;
+        demoBotAlarm('🎯 Limit-Verkauf ausgeführt: '+mengeTxt(o.menge)+' '+demoName(o.coinId)+' zu '+formatierePreis(fp)+' € ('+(gv>=0?'Gewinn +':'Verlust ')+eur(gv)+').');
+      }
+    });
+    if(geaendert){
+      demoSpeichern(depot);
+      demoTradeFlag=true;
+      demoLimitLaeuft=false;
+      demoLimitListeZeigen();
+      demoFormulareAufbauen();
+      demoWerteAktualisieren();
+      return;
+    }
+  }catch(e){}
+  demoLimitLaeuft=false;
+}
+setInterval(demoLimitOrdersPruefen,8000);
+
 function demoPosGV(id,depot){
   var preis=demoPreis(id);
   if(preis==null)return null;
@@ -1991,6 +2132,7 @@ function demoUebersichtZeigen(depot){
 
 function demoWerteAktualisieren(){
   demoBotStatusZeigen();
+  demoLimitOrdersPruefen();
   var view=document.getElementById('ansicht-demo');
   if(!view||view.style.display==='none')return;
   var kaufSel=document.getElementById('demo-kauf-coin');
