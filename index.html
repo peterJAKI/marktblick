@@ -2021,7 +2021,8 @@ function demoWerteAktualisieren(){
     html+='<div class="demo-pos">'
       +'<div class="coin-info"><div class="coin-name">'+(istBot?'🤖 ':'')+demoName(id)+'</div>'
       +'<div class="coin-symbol">'+mengeTxt(p.menge)+' · Ø '+formatierePreis(avg)+' € · jetzt '+(preis!=null?formatierePreis(preis)+' €':'–')+'</div>'
-      +'<div style="font-size:12px;color:#aaa;margin-top:2px">'+sig+'</div></div>'
+      +'<div style="font-size:12px;color:#aaa;margin-top:2px">'+sig+'</div>'
+      +'<button class="grau" style="margin-top:6px;padding:5px 12px;font-size:12px" onclick="demoPositionSofortSchliessen(\''+id+'\',\'long\')">🔴 Jetzt verkaufen'+(istBot?' (Automatik stoppen)':'')+'</button></div>'
       +'<div class="coin-price"><div class="price">'+eur(wert)+'</div>'
       +'<div class="change '+kl+'">'+(gv>=0?'+':'')+eur(gv)+' ('+(gv>=0?'+':'')+proz.toFixed(2)+'%)</div></div>'
       +'</div>';
@@ -2048,7 +2049,8 @@ function demoWerteAktualisieren(){
     html+='<div class="demo-pos">'
       +'<div class="coin-info"><div class="coin-name">'+(istBotS?'🤖 ':'')+'🔻 '+demoName(id)+' (Short)</div>'
       +'<div class="coin-symbol">'+mengeTxt(s.menge)+' · Ø '+formatierePreis(einstieg)+' € · jetzt '+(preis!=null?formatierePreis(preis)+' €':'–')+'</div>'
-      +'<div style="font-size:12px;color:#aaa;margin-top:2px">'+sig+'</div></div>'
+      +'<div style="font-size:12px;color:#aaa;margin-top:2px">'+sig+'</div>'
+      +'<button class="grau" style="margin-top:6px;padding:5px 12px;font-size:12px" onclick="demoPositionSofortSchliessen(\''+id+'\',\'short\')">🔴 Jetzt eindecken'+(istBotS?' (Automatik stoppen)':'')+'</button></div>'
       +'<div class="coin-price"><div class="price">'+eur(liab)+'</div>'
       +'<div class="change '+kl+'">'+(gv>=0?'+':'')+eur(gv)+' ('+(gv>=0?'+':'')+proz.toFixed(2)+'%)</div></div>'
       +'</div>';
@@ -2579,6 +2581,21 @@ function demoVerkaufen(mitTresor){
   var r=demoVerkaufCore(document.getElementById('demo-verkauf-coin').value,parseFloat(document.getElementById('demo-verkauf-menge').value),opt);
   document.getElementById('demo-status').textContent=r.text;
   if(r.ok)document.getElementById('demo-verkauf-menge').value='';
+  demoNachTrade();
+}
+// Jede offene Position (auch von einer Automatik verwaltete) sofort komplett schließen
+function demoPositionSofortSchliessen(id,art){
+  var depot=demoLaden();
+  var name=demoName(id);
+  var istShort=(art==='short');
+  var menge=istShort?(((depot.shorts||{})[id]||{}).menge||0):(((depot.positionen||{})[id]||{}).menge||0);
+  var s=document.getElementById('demo-status');
+  if(menge<=1e-12){ if(s)s.textContent='⚠️ Für '+name+' ist nichts (mehr) offen.'; demoNachTrade(); return; }
+  var bot=(depot.bots||[]).filter(function(b){return b.coinId===id;})[0];
+  if(!confirm((istShort?'🔻 Short auf ':'Position ')+name+' jetzt komplett schließen'+(bot?' und die Automatik dafür stoppen':'')+'?'))return;
+  if(bot){ demoBotEntfernen(depot,bot.id); demoSpeichern(depot); }
+  var r=istShort?demoShortDeckenCore(id,menge):demoVerkaufCore(id,menge);
+  if(s)s.textContent=(bot?'⏹️ Automatik gestoppt. ':'')+r.text;
   demoNachTrade();
 }
 
