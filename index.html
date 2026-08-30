@@ -257,7 +257,12 @@ h1{margin:0;font-size:22px}
 <div id="aktien-liste" style="max-width:640px;margin:0 auto;padding:10px"></div>
 </div>
 <div id="ansicht-rohstoffe" style="display:none">
-<div class="such-hinweis">ℹ️ Begrenztes Gratis-Kontingent – bitte nicht zu oft aktualisieren (max. ca. 4x am Tag). Weizen/Zucker/Mais/Kupfer sind Monatswerte, Gold/Silber sind aktuell.</div>
+<div class="suche">
+<select id="rohstoff-hinzu" style="flex:1;padding:10px 14px;border-radius:20px;border:1px solid #333;background:#1e1e1e;color:#eee;font-size:14px"></select>
+<button onclick="rohstoffHinzufuegen()">➕ Hinzufügen</button>
+</div>
+<div class="such-hinweis" id="rohstoff-hinzu-status"></div>
+<div class="such-hinweis">ℹ️ Gold, Silber, Platin, Palladium sind aktuelle Live-Preise und dürfen oft geladen werden. Alle anderen sind <b>Monatswerte</b> von Alpha Vantage mit einem Gratis-Limit von ca. 25 Abfragen/Tag – je mehr Rohstoffe in der Liste, desto seltener kannst du „laden".</div>
 <div id="rohstoffe-status" style="text-align:center;padding:8px;font-size:13px;color:#888">Noch nicht geladen.</div>
 <div id="rohstoffe-liste" style="max-width:640px;margin:0 auto;padding:10px"></div>
 <button class="refresh-btn" onclick="ladeRohstoffe()">🔄 Rohstoffe laden</button>
@@ -1070,11 +1075,59 @@ var ALPHA_VANTAGE_KEY='K3GH1KZ51278IFMR';
 var rohstoffListe=[
   {name:'Gold',einheit:'$ / Feinunze (aktuell)',art:'metall',code:'XAU'},
   {name:'Silber',einheit:'$ / Feinunze (aktuell)',art:'metall',code:'XAG'},
+  {name:'Platin',einheit:'$ / Feinunze (aktuell)',art:'metall',code:'XPT'},
+  {name:'Palladium',einheit:'$ / Feinunze (aktuell)',art:'metall',code:'XPD'},
   {name:'Kupfer',einheit:'$ (Monat)',art:'rohstoff',funktion:'COPPER'},
   {name:'Weizen',einheit:'$ pro Bushel (Monat)',art:'rohstoff',funktion:'WHEAT'},
   {name:'Mais',einheit:'$ pro Bushel (Monat)',art:'rohstoff',funktion:'CORN'},
   {name:'Zucker',einheit:'$ pro Pfund (Monat)',art:'rohstoff',funktion:'SUGAR'}
 ];
+// Zum Selbst-Hinzufügen (alle Alpha Vantage, Monatswerte)
+var ROHSTOFF_POOL=[
+  {name:'Rohöl (WTI)',einheit:'$ pro Barrel (Monat)',art:'rohstoff',funktion:'WTI'},
+  {name:'Brent-Öl',einheit:'$ pro Barrel (Monat)',art:'rohstoff',funktion:'BRENT'},
+  {name:'Erdgas',einheit:'$ (Monat)',art:'rohstoff',funktion:'NATURAL_GAS'},
+  {name:'Aluminium',einheit:'$ pro Tonne (Monat)',art:'rohstoff',funktion:'ALUMINUM'},
+  {name:'Kaffee',einheit:'$ (Monat)',art:'rohstoff',funktion:'COFFEE'},
+  {name:'Baumwolle',einheit:'$ (Monat)',art:'rohstoff',funktion:'COTTON'}
+];
+function getEigeneRohstoffe(){var d=localStorage.getItem('mb_eigene_rohstoffe');return d?JSON.parse(d):[];}
+function speichereEigeneRohstoffe(a){localStorage.setItem('mb_eigene_rohstoffe',JSON.stringify(a));}
+function rohstoffAlle(){
+  var eigen=getEigeneRohstoffe();
+  var extra=ROHSTOFF_POOL.filter(function(p){return eigen.indexOf(p.funktion)>=0;})
+    .map(function(p){var o={};for(var k in p)o[k]=p[k];o.eigen=true;return o;});
+  return rohstoffListe.concat(extra);
+}
+function rohstoffDropdownFuellen(){
+  var sel=document.getElementById('rohstoff-hinzu');
+  if(!sel)return;
+  var eigen=getEigeneRohstoffe();
+  var frei=ROHSTOFF_POOL.filter(function(p){return eigen.indexOf(p.funktion)<0;});
+  sel.innerHTML=frei.length
+    ? frei.map(function(p){return '<option value="'+p.funktion+'">'+p.name+'</option>';}).join('')
+    : '<option value="">— alle schon in der Liste —</option>';
+}
+function rohstoffHinzufuegen(){
+  var sel=document.getElementById('rohstoff-hinzu');
+  var st=document.getElementById('rohstoff-hinzu-status');
+  var fn=sel.value;
+  if(!fn){if(st)st.textContent='Nichts auszuwählen.';return;}
+  var eigen=getEigeneRohstoffe();
+  if(eigen.indexOf(fn)<0){eigen.push(fn);speichereEigeneRohstoffe(eigen);}
+  rohstoffDropdownFuellen();
+  var name=(ROHSTOFF_POOL.filter(function(p){return p.funktion===fn;})[0]||{}).name||fn;
+  if(st)st.textContent='✅ '+name+' hinzugefügt – auf „🔄 Rohstoffe laden" tippen.';
+}
+function rohstoffEntfernen(fn){
+  speichereEigeneRohstoffe(getEigeneRohstoffe().filter(function(x){return x!==fn;}));
+  rohstoffDropdownFuellen();
+  var row=document.getElementById('rohstoff-row-'+fn);
+  if(row)row.remove();
+  var st=document.getElementById('rohstoff-hinzu-status');
+  if(st)st.textContent='Entfernt.';
+}
+rohstoffDropdownFuellen();
 
 async function holeRohstoffWert(r){
   if(r.art==='metall'){
@@ -1103,8 +1156,9 @@ async function ladeRohstoffe(){
   var statusEl=document.getElementById('rohstoffe-status');
   var html='';
   var ersteAlphaVantageAbfrage=true;
-  for(var i=0;i<rohstoffListe.length;i++){
-    var r=rohstoffListe[i];
+  var liste=rohstoffAlle();
+  for(var i=0;i<liste.length;i++){
+    var r=liste[i];
     if(r.art==='rohstoff'){
       if(!ersteAlphaVantageAbfrage){
         statusEl.innerText='⏳ Warte kurz wegen Tempo-Limit... ('+r.name+')';
@@ -1124,9 +1178,10 @@ async function ladeRohstoffe(){
           changeHtml='<div class="change '+a.klasse+'">'+a.text+' <span style="color:#888;font-weight:normal">('+ergebnis.label+')</span></div>';
         }
       }
-      html+='<div class="coin">'
+      html+='<div class="coin"'+(r.eigen?' id="rohstoff-row-'+r.funktion+'"':'')+'>'
         +'<div class="coin-info"><div class="coin-name">'+r.name+'</div><div class="coin-symbol">'+r.einheit+'</div></div>'
         +'<div class="coin-price"><div class="price">'+preisHtml+'</div>'+changeHtml+'</div>'
+        +(r.eigen?'<button class="entfernen-btn" onclick="rohstoffEntfernen(\''+r.funktion+'\')" title="Entfernen">✕</button>':'')
         +'</div>';
     }catch(e){
       html+='<div class="coin"><div class="coin-info"><div class="coin-name">'+r.name+'</div></div><div class="coin-price">⚠️ Fehler</div></div>';
