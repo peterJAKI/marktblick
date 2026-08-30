@@ -268,7 +268,7 @@ h1{margin:0;font-size:22px}
 <button class="refresh-btn" onclick="ladeRohstoffe()">🔄 Rohstoffe laden</button>
 </div>
 <div id="ansicht-demo" style="display:none">
-<div class="such-hinweis">🎮 Übungskonto mit Spielgeld – keine echten Käufe. Kurse laufen live aus dem Krypto-Tab (in €).</div>
+<div class="such-hinweis">🎮 Übungskonto mit Spielgeld – keine echten Käufe. Handelbar sind Krypto-Coins und Aktien (Aktien-Kurse werden von $ in € umgerechnet), jeweils auf steigende (Kauf/Long) und fallende Kurse (Short). Rohstoffe gehen nicht – dafür gibt es keine Live-Kurse.</div>
 <div id="demo-alarm" class="demo-alarm" style="display:none"></div>
 <div class="demo-kopf">
 <div><span class="demo-label">Handelsgeld</span><span class="demo-wert" id="demo-bar">–</span></div>
@@ -1678,8 +1678,31 @@ function demoLaden(){
   return x;
 }
 function demoSpeichern(x){localStorage.setItem('mb_demo',JSON.stringify(x));}
-function demoPreis(id){var c=aktuelleCoins.find(function(x){return x.id===id;});return c?c.current_price:null;}
-function demoName(id){var c=aktuelleCoins.find(function(x){return x.id===id;});return c?c.name:id;}
+// Handelbare Werte: Krypto-Coins (id) + Aktien (id = "aktie:SYMBOL", Preis in USD -> in € umgerechnet)
+function demoAktienAlle(){
+  var m={},out=[];
+  aktienListe.concat(getEigeneAktien()).forEach(function(a){
+    if(a&&a.symbol&&!m[a.symbol]){m[a.symbol]=1;out.push(a);}
+  });
+  return out;
+}
+function demoPreis(id){
+  if(typeof id==='string'&&id.indexOf('aktie:')===0){
+    if(!eurUsdRate||eurUsdRate<=0)return null;
+    var s=id.slice(6),d=aktienDaten[s];
+    return (d&&typeof d.price==='number'&&d.price>0)?d.price*eurUsdRate:null;
+  }
+  var c=aktuelleCoins.find(function(x){return x.id===id;});
+  return c?c.current_price:null;
+}
+function demoName(id){
+  if(typeof id==='string'&&id.indexOf('aktie:')===0){
+    var s=id.slice(6),a=demoAktienAlle().find(function(x){return x.symbol===s;});
+    return (a?a.name:s)+' (Aktie)';
+  }
+  var c=aktuelleCoins.find(function(x){return x.id===id;});
+  return c?c.name:id;
+}
 function eur(n){return n.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';}
 function mengeTxt(n){return n.toLocaleString('de-DE',{maximumFractionDigits:8});}
 function demoGebuehrFuer(brutto,depot){
@@ -1740,8 +1763,12 @@ function demoFormulareAufbauen(){
   if(!kaufSel||!verkSel)return;
   var depot=demoLaden();
   var vK=kaufSel.value,vV=verkSel.value;
-  kaufSel.innerHTML=aktuelleCoins.map(function(c){return '<option value="'+c.id+'">'+c.name+' ('+c.symbol.toUpperCase()+')</option>';}).join('');
-  if(vK&&aktuelleCoins.some(function(c){return c.id===vK;}))kaufSel.value=vK;
+  var coinOpt=aktuelleCoins.map(function(c){return '<option value="'+c.id+'">'+c.name+' ('+c.symbol.toUpperCase()+')</option>';}).join('');
+  var aktienOpt=demoAktienAlle().filter(function(a){var d=aktienDaten[a.symbol];return d&&typeof d.price==='number'&&d.price>0;})
+    .map(function(a){return '<option value="aktie:'+a.symbol+'">'+a.name+' ('+a.symbol+') · Aktie</option>';}).join('');
+  var gueltig=function(v){return v&&(aktuelleCoins.some(function(c){return c.id===v;})||/^aktie:/.test(v));};
+  kaufSel.innerHTML=coinOpt+aktienOpt;
+  if(gueltig(vK))kaufSel.value=vK;
   var gehalten=Object.keys(depot.positionen).filter(function(id){return depot.positionen[id].menge>1e-12;});
   verkSel.innerHTML=gehalten.length?gehalten.map(function(id){return '<option value="'+id+'">'+demoName(id)+'</option>';}).join(''):'<option value="">— keine Positionen —</option>';
   if(vV&&gehalten.indexOf(vV)>=0)verkSel.value=vV;
@@ -1749,8 +1776,8 @@ function demoFormulareAufbauen(){
     var sel=document.getElementById(selId);
     if(!sel)return;
     var v=sel.value;
-    sel.innerHTML=aktuelleCoins.map(function(c){return '<option value="'+c.id+'">'+c.name+' ('+c.symbol.toUpperCase()+')</option>';}).join('');
-    if(v&&aktuelleCoins.some(function(c){return c.id===v;}))sel.value=v;
+    sel.innerHTML=coinOpt+aktienOpt;
+    if(gueltig(v))sel.value=v;
   });
   demoGebuehrInfo();
   demoKaufVorschau();
