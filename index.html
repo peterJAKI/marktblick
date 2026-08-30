@@ -225,6 +225,18 @@ h1{margin:0;font-size:22px}
 <button onclick="aktieHinzufuegen()">➕ Hinzufügen</button>
 </div>
 <div class="such-hinweis" id="aktien-such-status"></div>
+<div class="demo-alarm" id="aktien-alarm-banner" style="display:none"></div>
+<div class="rechner">
+<div class="rechner-titel">🔔 Kurs-Alarm Aktien</div>
+<div class="rechner-zeile">
+<select id="aktien-alarm-sym"></select>
+<select id="aktien-alarm-richtung"><option value="ueber">steigt über</option><option value="unter">fällt unter</option></select>
+<input type="number" id="aktien-alarm-preis" placeholder="$" step="any" style="width:90px">
+<button onclick="aktienAlarmHinzufuegen()">➕ Alarm</button>
+</div>
+<div id="aktien-alarm-liste" style="font-size:13px;margin-top:6px"></div>
+<div class="signal-hinweis">Ton + Meldung, sobald der Live-Kurs deine Marke erreicht. Prüft bei jedem Kurs-Tick. Läuft nur, solange die App offen ist – kein System-Push, nur im Fenster.</div>
+</div>
 <div class="rechner">
 <div class="rechner-titel" id="titel-anews" onclick="rechnerUmschalten('anews')"><span class="rechner-pfeil" id="pfeil-anews">▸</span>📰 Börsen-News (auf Deutsch)</div>
 <div class="rechner-body" id="body-anews">
@@ -263,6 +275,18 @@ h1{margin:0;font-size:22px}
 </div>
 <div class="such-hinweis" id="rohstoff-hinzu-status"></div>
 <div class="such-hinweis">ℹ️ Gold, Silber, Platin, Palladium sind aktuelle Live-Preise und dürfen oft geladen werden. Alle anderen sind <b>Monatswerte</b> von Alpha Vantage mit einem Gratis-Limit von ca. 25 Abfragen/Tag – je mehr Rohstoffe in der Liste, desto seltener kannst du „laden".</div>
+<div class="demo-alarm" id="rohstoff-alarm-banner" style="display:none"></div>
+<div class="rechner">
+<div class="rechner-titel">🔔 Kurs-Alarm Rohstoffe</div>
+<div class="rechner-zeile">
+<select id="rohstoff-alarm-key"></select>
+<select id="rohstoff-alarm-richtung"><option value="ueber">steigt über</option><option value="unter">fällt unter</option></select>
+<input type="number" id="rohstoff-alarm-preis" placeholder="$" step="any" style="width:90px">
+<button onclick="rohstoffAlarmHinzufuegen()">➕ Alarm</button>
+</div>
+<div id="rohstoff-alarm-liste" style="font-size:13px;margin-top:6px"></div>
+<div class="signal-hinweis">Wird <b>nur beim „🔄 Rohstoffe laden"</b> geprüft – Rohstoff-Kurse aktualisieren nicht von selbst. Metalle sind aktuell, der Rest sind Monatswerte.</div>
+</div>
 <div id="rohstoffe-status" style="text-align:center;padding:8px;font-size:13px;color:#888">Noch nicht geladen.</div>
 <div id="rohstoffe-liste" style="max-width:640px;margin:0 auto;padding:10px"></div>
 <button class="refresh-btn" onclick="ladeRohstoffe()">🔄 Rohstoffe laden</button>
@@ -941,6 +965,7 @@ function aktualisiereAktienZeile(symbol){
     changeEl.innerText=a.text;
     changeEl.className='change '+a.klasse;
   }
+  aktienAlarmePruefen();
 }
 
 async function ladeAktien(){
@@ -966,6 +991,8 @@ async function ladeAktien(){
     document.getElementById('aktien-liste').innerHTML=html;
     aktuelleAktien=alleAktien;
     fuelleAktienDropdown();
+    aktienAlarmDropdown();
+    aktienAlarmePruefen();
     aktieBerechne();
     aktieBerechne2();
     var jetzt=new Date().toLocaleTimeString('de-DE');
@@ -1116,12 +1143,14 @@ function rohstoffHinzufuegen(){
   var eigen=getEigeneRohstoffe();
   if(eigen.indexOf(fn)<0){eigen.push(fn);speichereEigeneRohstoffe(eigen);}
   rohstoffDropdownFuellen();
+  rohstoffAlarmDropdown();
   var name=(ROHSTOFF_POOL.filter(function(p){return p.funktion===fn;})[0]||{}).name||fn;
   if(st)st.textContent='✅ '+name+' hinzugefügt – auf „🔄 Rohstoffe laden" tippen.';
 }
 function rohstoffEntfernen(fn){
   speichereEigeneRohstoffe(getEigeneRohstoffe().filter(function(x){return x!==fn;}));
   rohstoffDropdownFuellen();
+  if(typeof rohstoffAlarmDropdown==='function')rohstoffAlarmDropdown();
   var row=document.getElementById('rohstoff-row-'+fn);
   if(row)row.remove();
   var st=document.getElementById('rohstoff-hinzu-status');
@@ -1173,6 +1202,7 @@ async function ladeRohstoffe(){
       var changeHtml='';
       if(ergebnis!==null){
         preisHtml=ergebnis.wert.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
+        rohstoffAlarmPruefen(rohstoffAlarmKey(r),ergebnis.wert);
         if(ergebnis.aenderung!==null){
           var a=formatiereAenderung(ergebnis.aenderung);
           changeHtml='<div class="change '+a.klasse+'">'+a.text+' <span style="color:#888;font-weight:normal">('+ergebnis.label+')</span></div>';
@@ -1191,6 +1221,139 @@ async function ladeRohstoffe(){
   var jetzt=new Date().toLocaleTimeString('de-DE');
   statusEl.innerText='✅ Zuletzt geladen: '+jetzt;
 }
+
+// ===== Kurs-Alarme: Aktien (Live) und Rohstoffe (beim Laden) =====
+function alarmBannerHtml(titel,zeilen){
+  return '<span onclick="this.parentNode.style.display=\'none\'" style="float:right;cursor:pointer;color:#aaa">✕</span>'
+    +'🔔 <b>'+titel+'</b><br>'+zeilen.join('<br>');
+}
+// --- Aktien ---
+function aktienAlarmeLaden(){try{return JSON.parse(localStorage.getItem('mb_aktien_alarme'))||[];}catch(e){return [];}}
+function aktienAlarmeSpeichern(a){localStorage.setItem('mb_aktien_alarme',JSON.stringify(a));}
+function aktienAlarmDropdown(){
+  var sel=document.getElementById('aktien-alarm-sym'); if(!sel)return;
+  var v=sel.value;
+  sel.innerHTML=demoAktienAlle().map(function(a){return '<option value="'+a.symbol+'">'+a.name+' ('+a.symbol+')</option>';}).join('');
+  if(v)sel.value=v;
+}
+function aktienAlarmListeZeigen(){
+  var el=document.getElementById('aktien-alarm-liste'); if(!el)return;
+  var al=aktienAlarmeLaden();
+  if(!al.length){el.innerHTML='<span style="color:#888">Kein Alarm gesetzt.</span>';return;}
+  el.innerHTML=al.map(function(a){
+    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:3px 0">'
+      +'<span>'+(a.aktiv?'⏳ ':'✅ ')+a.name+' '+(a.richtung==='ueber'?'über':'unter')+' '+formatierePreis(a.preis)+' $'+(a.aktiv?'':' – ausgelöst')+'</span>'
+      +'<button class="grau" style="padding:3px 9px" onclick="aktienAlarmEntfernen(\''+a.id+'\')">✕</button></div>';
+  }).join('');
+}
+function aktienAlarmHinzufuegen(){
+  var sym=document.getElementById('aktien-alarm-sym').value;
+  var richtung=document.getElementById('aktien-alarm-richtung').value;
+  var preis=parseFloat(document.getElementById('aktien-alarm-preis').value);
+  if(!sym||!preis||preis<=0)return;
+  var name=(demoAktienAlle().find(function(a){return a.symbol===sym;})||{}).name||sym;
+  var al=aktienAlarmeLaden();
+  al.push({id:'aa'+Date.now()+Math.floor(Math.random()*1000),sym:sym,name:name,richtung:richtung,preis:preis,aktiv:true});
+  aktienAlarmeSpeichern(al);
+  document.getElementById('aktien-alarm-preis').value='';
+  try{demoBeep();}catch(e){}
+  aktienAlarmListeZeigen();
+  aktienAlarmePruefen();
+}
+function aktienAlarmEntfernen(id){
+  aktienAlarmeSpeichern(aktienAlarmeLaden().filter(function(a){return a.id!==id;}));
+  aktienAlarmListeZeigen();
+  if(!aktienAlarmeLaden().some(function(a){return !a.aktiv;})){var b=document.getElementById('aktien-alarm-banner');if(b)b.style.display='none';}
+}
+var aktienAlarmGepiept={};
+function aktienAlarmePruefen(){
+  var al=aktienAlarmeLaden();
+  if(!al.length)return;
+  var geaendert=false,neu=false;
+  al.forEach(function(a){
+    if(!a.aktiv)return;
+    var d=aktienDaten[a.sym];
+    if(!d||typeof d.price!=='number'||d.price<=0)return;
+    var hit=(a.richtung==='ueber')?(d.price>=a.preis):(d.price<=a.preis);
+    if(hit){a.aktiv=false;a.ausPreis=d.price;geaendert=true;if(!aktienAlarmGepiept[a.id]){aktienAlarmGepiept[a.id]=1;neu=true;}}
+  });
+  if(!geaendert)return;
+  aktienAlarmeSpeichern(al);
+  var aus=al.filter(function(a){return !a.aktiv;});
+  var b=document.getElementById('aktien-alarm-banner');
+  if(b&&aus.length){
+    b.style.display='block';
+    b.innerHTML=alarmBannerHtml('Kurs-Alarm Aktien',aus.map(function(a){
+      return a.name+' '+(a.richtung==='ueber'?'über':'unter')+' '+formatierePreis(a.preis)+' $ erreicht (jetzt '+formatierePreis(a.ausPreis)+' $)';
+    }));
+  }
+  if(neu){try{demoBeep();}catch(e){}}
+  aktienAlarmListeZeigen();
+}
+// --- Rohstoffe ---
+function rohstoffAlarmeLaden(){try{return JSON.parse(localStorage.getItem('mb_rohstoff_alarme'))||[];}catch(e){return [];}}
+function rohstoffAlarmeSpeichern(a){localStorage.setItem('mb_rohstoff_alarme',JSON.stringify(a));}
+function rohstoffAlarmKey(r){return r.code||r.funktion;}
+function rohstoffAlarmDropdown(){
+  var sel=document.getElementById('rohstoff-alarm-key'); if(!sel)return;
+  var v=sel.value;
+  sel.innerHTML=rohstoffAlle().map(function(r){return '<option value="'+rohstoffAlarmKey(r)+'">'+r.name+'</option>';}).join('');
+  if(v)sel.value=v;
+}
+function rohstoffAlarmListeZeigen(){
+  var el=document.getElementById('rohstoff-alarm-liste'); if(!el)return;
+  var al=rohstoffAlarmeLaden();
+  if(!al.length){el.innerHTML='<span style="color:#888">Kein Alarm gesetzt.</span>';return;}
+  el.innerHTML=al.map(function(a){
+    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:3px 0">'
+      +'<span>'+(a.aktiv?'⏳ ':'✅ ')+a.name+' '+(a.richtung==='ueber'?'über':'unter')+' '+formatierePreis(a.preis)+' $'+(a.aktiv?'':' – ausgelöst')+'</span>'
+      +'<button class="grau" style="padding:3px 9px" onclick="rohstoffAlarmEntfernen(\''+a.id+'\')">✕</button></div>';
+  }).join('');
+}
+function rohstoffAlarmHinzufuegen(){
+  var key=document.getElementById('rohstoff-alarm-key').value;
+  var richtung=document.getElementById('rohstoff-alarm-richtung').value;
+  var preis=parseFloat(document.getElementById('rohstoff-alarm-preis').value);
+  if(!key||!preis||preis<=0)return;
+  var name=(rohstoffAlle().find(function(r){return rohstoffAlarmKey(r)===key;})||{}).name||key;
+  var al=rohstoffAlarmeLaden();
+  al.push({id:'ra'+Date.now()+Math.floor(Math.random()*1000),key:key,name:name,richtung:richtung,preis:preis,aktiv:true});
+  rohstoffAlarmeSpeichern(al);
+  document.getElementById('rohstoff-alarm-preis').value='';
+  try{demoBeep();}catch(e){}
+  rohstoffAlarmListeZeigen();
+}
+function rohstoffAlarmEntfernen(id){
+  rohstoffAlarmeSpeichern(rohstoffAlarmeLaden().filter(function(a){return a.id!==id;}));
+  rohstoffAlarmListeZeigen();
+  if(!rohstoffAlarmeLaden().some(function(a){return !a.aktiv;})){var b=document.getElementById('rohstoff-alarm-banner');if(b)b.style.display='none';}
+}
+var rohstoffAlarmGepiept={};
+function rohstoffAlarmPruefen(key,wert){
+  if(typeof wert!=='number'||wert<=0)return;
+  var al=rohstoffAlarmeLaden();
+  if(!al.length)return;
+  var geaendert=false,neu=false;
+  al.forEach(function(a){
+    if(!a.aktiv||a.key!==key)return;
+    var hit=(a.richtung==='ueber')?(wert>=a.preis):(wert<=a.preis);
+    if(hit){a.aktiv=false;a.ausPreis=wert;geaendert=true;if(!rohstoffAlarmGepiept[a.id]){rohstoffAlarmGepiept[a.id]=1;neu=true;}}
+  });
+  if(!geaendert)return;
+  rohstoffAlarmeSpeichern(al);
+  var aus=al.filter(function(a){return !a.aktiv;});
+  var b=document.getElementById('rohstoff-alarm-banner');
+  if(b&&aus.length){
+    b.style.display='block';
+    b.innerHTML=alarmBannerHtml('Kurs-Alarm Rohstoffe',aus.map(function(a){
+      return a.name+' '+(a.richtung==='ueber'?'über':'unter')+' '+formatierePreis(a.preis)+' $ erreicht (jetzt '+formatierePreis(a.ausPreis)+' $)';
+    }));
+  }
+  if(neu){try{demoBeep();}catch(e){}}
+  rohstoffAlarmListeZeigen();
+}
+aktienAlarmDropdown();aktienAlarmListeZeigen();
+rohstoffAlarmDropdown();rohstoffAlarmListeZeigen();
 
 // --- Krypto Kerzenchart (Schritt 1) ---
 var chartAktivesSymbol=null;
