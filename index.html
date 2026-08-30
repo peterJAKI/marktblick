@@ -2762,20 +2762,62 @@ function demoRallyScan(){
   treffer.sort(function(a,b){return b.score-a.score;});
   return treffer.slice(0,4);
 }
-function demoScanText(dips,rallys){
+function demoScanText(dips,rallys,aDips,aRallys){
   var out='';
-  if(dips&&dips.length){
-    out+='<br><b>📉→ Dip-Scan (Long-Einstieg prüfen):</b><br>'+dips.map(function(d){
-      return d.name+': '+d.chg.toFixed(1)+' % (24 h) gefallen und dreht gerade nach oben';
+  var teil=function(titel,arr,plus){
+    if(!arr||!arr.length)return '';
+    return '<br><b>'+titel+'</b><br>'+arr.map(function(x){
+      return (x.name||x.sym)+': '+(plus?'+':'')+x.chg.toFixed(1)+' % '+(plus?'gestiegen':'gefallen')+' und dreht gerade';
     }).join('<br>');
-  }
-  if(rallys&&rallys.length){
-    out+='<br><b>🔻← Rally-Scan (Short-Einstieg prüfen):</b><br>'+rallys.map(function(r){
-      return r.name+': +'+r.chg.toFixed(1)+' % (24 h) gestiegen und dreht gerade nach unten';
-    }).join('<br>');
-  }
+  };
+  out+=teil('📉→ Dip-Scan Krypto (Long-Einstieg prüfen):',dips,false);
+  out+=teil('🔻← Rally-Scan Krypto (Short-Einstieg prüfen):',rallys,true);
+  out+=teil('📉→ Dip-Scan Aktien (Long-Einstieg prüfen):',aDips,false);
+  out+=teil('🔻← Rally-Scan Aktien (Short-Einstieg prüfen):',aRallys,true);
   return out;
 }
+
+// --- Aktien-Scan: eigener kleiner Kursverlauf im Speicher (Aktien haben keine fertige Verlaufslinie) ---
+var aktienScanVerlauf={};
+function aktienScanSample(){
+  var jetzt=Date.now();
+  (typeof demoAktienAlle==='function'?demoAktienAlle():[]).forEach(function(a){
+    var d=aktienDaten[a.symbol];
+    if(!d||typeof d.price!=='number'||d.price<=0)return;
+    var arr=aktienScanVerlauf[a.symbol]||(aktienScanVerlauf[a.symbol]=[]);
+    var last=arr[arr.length-1];
+    if(last&&jetzt-last.t<50000)return; // höchstens 1 Punkt pro ~Minute
+    arr.push({t:jetzt,p:d.price});
+    if(arr.length>30)arr.splice(0,arr.length-30);
+  });
+}
+setInterval(aktienScanSample,60000);
+function aktienDipRally(richtungRunter){
+  var treffer=[];
+  (typeof demoAktienAlle==='function'?demoAktienAlle():[]).forEach(function(a){
+    var d=aktienDaten[a.symbol];
+    var arr=aktienScanVerlauf[a.symbol];
+    if(!d||typeof d.price!=='number'||d.price<=0||!d.previousClose||!arr||arr.length<8)return;
+    var chg=(d.price-d.previousClose)/d.previousClose*100;
+    var w=arr.map(function(x){return x.p;}).slice(-24);
+    var n=w.length, jetzt=w[n-1], vor3=w[n-4]||w[0];
+    if(richtungRunter){
+      var hoch=Math.max.apply(null,w); if(!(hoch>0))return;
+      var vomHoch=(hoch-jetzt)/hoch*100;
+      var drehtRunter=jetzt<=vor3 && jetzt<w[n-2];
+      if(chg>=3 && vomHoch<=4 && drehtRunter)treffer.push({sym:a.symbol,name:a.name,chg:chg,score:chg+(4-vomHoch)});
+    }else{
+      var tief=Math.min.apply(null,w); if(!(tief>0))return;
+      var vomTief=(jetzt-tief)/tief*100;
+      var drehtHoch=jetzt>=vor3 && jetzt>w[n-2];
+      if(chg<=-3 && vomTief<=4 && drehtHoch)treffer.push({sym:a.symbol,name:a.name,chg:chg,score:(-chg)+(4-vomTief)});
+    }
+  });
+  treffer.sort(function(a,b){return b.score-a.score;});
+  return treffer.slice(0,4);
+}
+function aktienDipScan(){return aktienDipRally(false);}
+function aktienRallyScan(){return aktienDipRally(true);}
 
 // --- Scan-Treffer automatisch handeln (Demo) ---
 var demoAutoScanLaeuft=false;
@@ -2917,9 +2959,10 @@ async function demoMarktSignale(){
   el.textContent='⏳ prüfe Kerzendaten…';
   var r=await demoSignaleSammeln();
   var dips=demoDipScan(), rallys=demoRallyScan();
+  var aDips=aktienDipScan(), aRallys=aktienRallyScan();
   el.innerHTML=(r.zeilen.join('<br>')||'Nichts zu prüfen – erst einen Coin auswählen oder kaufen.')
-    +demoScanText(dips,rallys)
-    +'<br><span style="color:#ddd">Stand: '+new Date().toLocaleTimeString('de-DE')+' · nur Regeln, keine Beratung</span>';
+    +demoScanText(dips,rallys,aDips,aRallys)
+    +'<br><span style="color:#ddd">Stand: '+new Date().toLocaleTimeString('de-DE')+' · nur Regeln, keine Beratung. Aktien-Scan braucht ~10 Min offene App zum Aufwärmen.</span>';
 }
 
 var demoAlarmStatus={},demoAudioCtx=null,demoAlarmLaeuft=false;
@@ -2946,7 +2989,7 @@ function demoAlarmUmschalten(){
   demoAlarmStatus={};
   if(depot.alarmAn){
     try{if(!demoAudioCtx)demoAudioCtx=new (window.AudioContext||window.webkitAudioContext)();demoAudioCtx.resume();}catch(e){}
-    document.getElementById('demo-status').textContent='🔔 Auto-Alarm an – prüft alle 30 Sek. den gewählten Kauf-Coin, deine Positionen und scannt alle Coins der Liste nach Dips.';
+    document.getElementById('demo-status').textContent='🔔 Auto-Alarm an – prüft alle 30 Sek. den gewählten Kauf-Coin, deine Positionen und scannt alle Coins UND Aktien nach Dips/Rallys (Aktien-Scan braucht ~10 Min offene App).';
     demoAlarmPruefen();
   }else{
     document.getElementById('demo-alarm').style.display='none';
@@ -2964,8 +3007,9 @@ async function demoAlarmPruefen(){
   try{
     var r=await demoSignaleSammeln();
     var dips=demoDipScan(), rallys=demoRallyScan();
+    var aDips=aktienDipScan(), aRallys=aktienRallyScan();
     document.getElementById('demo-signale').innerHTML=(r.zeilen.join('<br>')||'—')
-      +demoScanText(dips,rallys)
+      +demoScanText(dips,rallys,aDips,aRallys)
       +'<br><span style="color:#ddd">Auto-Prüfung: '+new Date().toLocaleTimeString('de-DE')+'</span>';
     var neue=[],aktiv={},starke=[];
     r.signale.forEach(function(s){
@@ -2983,6 +3027,18 @@ async function demoAlarmPruefen(){
     rallys.forEach(function(rr){
       var k='rally-'+rr.id;aktiv[k]=1;
       var sig={id:rr.id,name:rr.name,art:'short',stark:true,text:rr.name+' stieg +'+rr.chg.toFixed(1)+' % (24 h) und dreht gerade – Short-Einstieg prüfen'};
+      starke.push(sig);
+      if(!demoAlarmStatus[k])neue.push(sig);
+    });
+    aDips.forEach(function(d){
+      var k='adip-'+d.sym;aktiv[k]=1;
+      var sig={id:'aktie:'+d.sym,name:d.name,art:'kauf',stark:true,text:'📉→ '+d.name+' (Aktie) fiel '+d.chg.toFixed(1)+' % heute und dreht gerade – Einstieg prüfen'};
+      starke.push(sig);
+      if(!demoAlarmStatus[k])neue.push(sig);
+    });
+    aRallys.forEach(function(rr){
+      var k='arally-'+rr.sym;aktiv[k]=1;
+      var sig={id:'aktie:'+rr.sym,name:rr.name,art:'short',stark:true,text:rr.name+' (Aktie) stieg +'+rr.chg.toFixed(1)+' % heute und dreht gerade – Short-Einstieg prüfen'};
       starke.push(sig);
       if(!demoAlarmStatus[k])neue.push(sig);
     });
