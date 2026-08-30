@@ -301,6 +301,17 @@ h1{margin:0;font-size:22px}
 <span>Spätestens verkaufen nach</span>
 <input type="number" id="demo-bot-maxmin" placeholder="—" min="1" step="1" style="width:70px"><span>Minuten (leer = keine Zeitgrenze)</span>
 </div>
+<div class="rechner-zeile" style="font-size:12px;color:#888;gap:6px;flex-wrap:wrap">
+<span>Schnellwahl:</span>
+<a href="#" onclick="demoBotMaxWahl(1);return false" style="color:#2962ff">1 Min</a> ·
+<a href="#" onclick="demoBotMaxWahl(3);return false" style="color:#2962ff">3 Min</a> ·
+<a href="#" onclick="demoBotMaxWahl(5);return false" style="color:#2962ff">5 Min</a> ·
+<a href="#" onclick="demoBotMaxWahl(15);return false" style="color:#2962ff">15 Min</a> ·
+<a href="#" onclick="demoBotMaxWahl(60);return false" style="color:#2962ff">1 Std</a> ·
+<a href="#" onclick="demoBotMaxWahl(240);return false" style="color:#2962ff">4 Std</a> ·
+<a href="#" onclick="demoBotMaxWahl(1440);return false" style="color:#2962ff">1 Tag</a> ·
+<a href="#" onclick="demoBotMaxWahl(0);return false" style="color:#2962ff">aus</a>
+</div>
 <div class="rechner-zeile">
 <span>Prüf-Rhythmus: alle</span>
 <input type="number" id="demo-bot-minuten" placeholder="5" min="1" max="60" step="1" style="width:70px"><span>Minuten (Standard 5)</span>
@@ -1782,6 +1793,15 @@ function demoBotPL(depot,bot){
   var p=depot.positionen[bot.coinId]; if(!p||p.menge<=1e-12)return null;
   var b=p.menge*preis;
   return (b-demoGebuehrFuer(b,depot))-p.kosten;
+}
+function demoBotMaxWahl(min){
+  var el=document.getElementById('demo-bot-maxmin');
+  if(!el)return;
+  el.value=(min>0)?min:'';
+  var s=document.getElementById('demo-bot-status');
+  if(s)s.textContent=(min>0)
+    ? 'Zeitgrenze gesetzt: spätestens nach '+min+' Minuten verkaufen.'
+    : 'Zeitgrenze aus – die Automatik läuft ohne Zeitlimit.';
 }
 function demoBotStart(){
   var depot=demoLaden();
