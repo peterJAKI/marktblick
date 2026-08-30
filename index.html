@@ -308,6 +308,14 @@ h1{margin:0;font-size:22px}
 <div id="demo-risiko" style="font-size:13px;margin-top:6px;border-top:1px solid #2c2c2c;padding-top:6px"></div>
 </div>
 <div class="rechner">
+<div class="rechner-titel">Was handeln?</div>
+<div class="rechner-zeile" style="gap:8px">
+<button id="demo-klasse-krypto" class="grau" onclick="demoHandelKlasse('krypto')">🪙 Krypto</button>
+<button id="demo-klasse-aktien" class="grau" onclick="demoHandelKlasse('aktien')">📈 Aktien</button>
+</div>
+<div id="demo-klasse-info" style="font-size:12px;color:#888;margin-top:6px"></div>
+</div>
+<div class="rechner">
 <div class="rechner-titel">🤖 Automatik — kaufen/shorten &amp; von selbst verkaufen</div>
 <div id="demo-bot-liste" style="font-size:13px;margin-bottom:8px"></div>
 <div class="rechner-zeile">
@@ -1817,6 +1825,7 @@ function demoLaden(){
   if(!Array.isArray(x.limitOrders))x.limitOrders=[];
   if(typeof x.zielGewinn!=='number')x.zielGewinn=2;
   if(typeof x.maxVerlust!=='number')x.maxVerlust=1;
+  if(x.handelKlasse!=='aktien'&&x.handelKlasse!=='krypto')x.handelKlasse='krypto';
   if(typeof x.autoScanHandel!=='boolean')x.autoScanHandel=false;
   if(typeof x.autoScanEuro!=='number')x.autoScanEuro=50;
   if(typeof x.autoScanMaxPos!=='number')x.autoScanMaxPos=3;
@@ -1920,30 +1929,46 @@ function demoGebuehrInfo(){
     +'Krypto-Börsen (Binance, Kraken, Bitvavo) ca. <b>0,1–0,4 %</b> (Standard hier: 0,4 %). Jeder Anbieter rechnet anders – das hier ist eine Schätzung.';
 }
 
+function demoHandelKlasse(k){
+  var depot=demoLaden();
+  depot.handelKlasse=(k==='aktien')?'aktien':'krypto';
+  demoSpeichern(depot);
+  demoFormulareAufbauen();
+}
+function demoHandelKlasseAnzeigen(k){
+  var kb=document.getElementById('demo-klasse-krypto'), ab=document.getElementById('demo-klasse-aktien');
+  if(kb)kb.style.background=(k==='krypto')?'#2962ff':'#333';
+  if(ab)ab.style.background=(k==='aktien')?'#2962ff':'#333';
+  var info=document.getElementById('demo-klasse-info');
+  if(info)info.textContent=(k==='aktien')
+    ? 'Kaufen, Verkaufen, Short, Automatik und Limit-Orders zeigen jetzt nur Aktien.'
+    : 'Kaufen, Verkaufen, Short, Automatik und Limit-Orders zeigen jetzt nur Krypto.';
+}
 function demoFormulareAufbauen(){
   var kaufSel=document.getElementById('demo-kauf-coin');
   var verkSel=document.getElementById('demo-verkauf-coin');
   if(!kaufSel||!verkSel)return;
   var depot=demoLaden();
   var vK=kaufSel.value,vV=verkSel.value;
-  var kryptoGrp='<optgroup label="🪙 Krypto">'+aktuelleCoins.map(function(c){return '<option value="'+c.id+'">'+c.name+' ('+c.symbol.toUpperCase()+')</option>';}).join('')+'</optgroup>';
+  var klasse=depot.handelKlasse||'krypto';
+  var kryptoOpt=aktuelleCoins.map(function(c){return '<option value="'+c.id+'">'+c.name+' ('+c.symbol.toUpperCase()+')</option>';}).join('');
   var aktienItems=demoAktienAlle().filter(function(a){var d=aktienDaten[a.symbol];return d&&typeof d.price==='number'&&d.price>0;});
-  var aktienGrp=aktienItems.length?'<optgroup label="📈 Aktien">'+aktienItems.map(function(a){return '<option value="aktie:'+a.symbol+'">'+a.name+' ('+a.symbol+')</option>';}).join('')+'</optgroup>':'';
-  var handelOpt=kryptoGrp+aktienGrp;
-  var gueltig=function(v){return v&&(aktuelleCoins.some(function(c){return c.id===v;})||/^aktie:/.test(v));};
+  var aktienOpt=aktienItems.map(function(a){return '<option value="aktie:'+a.symbol+'">'+a.name+' ('+a.symbol+')</option>';}).join('');
+  var handelOpt=(klasse==='aktien')
+    ? (aktienOpt||'<option value="">— keine Aktie mit Live-Kurs —</option>')
+    : kryptoOpt;
+  var gueltig=function(v){
+    if(!v)return false;
+    return (klasse==='aktien')?/^aktie:/.test(v):aktuelleCoins.some(function(c){return c.id===v;});
+  };
+  demoHandelKlasseAnzeigen(klasse);
   kaufSel.innerHTML=handelOpt;
   if(gueltig(vK))kaufSel.value=vK;
-  var gehalten=Object.keys(depot.positionen).filter(function(id){return depot.positionen[id].menge>1e-12;});
-  if(gehalten.length){
-    var gKrypto=gehalten.filter(function(id){return !/^aktie:/.test(id);});
-    var gAktien=gehalten.filter(function(id){return /^aktie:/.test(id);});
-    var vh='';
-    if(gKrypto.length)vh+='<optgroup label="🪙 Krypto">'+gKrypto.map(function(id){return '<option value="'+id+'">'+demoName(id)+'</option>';}).join('')+'</optgroup>';
-    if(gAktien.length)vh+='<optgroup label="📈 Aktien">'+gAktien.map(function(id){return '<option value="'+id+'">'+demoName(id)+'</option>';}).join('')+'</optgroup>';
-    verkSel.innerHTML=vh;
-  }else{
-    verkSel.innerHTML='<option value="">— keine Positionen —</option>';
-  }
+  var alleGehalten=Object.keys(depot.positionen).filter(function(id){return depot.positionen[id].menge>1e-12;});
+  var gehalten=alleGehalten.filter(function(id){return (klasse==='aktien')?/^aktie:/.test(id):!/^aktie:/.test(id);});
+  verkSel.innerHTML=gehalten.length
+    ? gehalten.map(function(id){return '<option value="'+id+'">'+demoName(id)+'</option>';}).join('')
+    : '<option value="">— keine '+(klasse==='aktien'?'Aktien':'Krypto')+'-Positionen —</option>';
   if(vV&&gehalten.indexOf(vV)>=0)verkSel.value=vV;
   ['demo-short-coin','demo-bot-coin','demo-limit-coin'].forEach(function(selId){
     var sel=document.getElementById(selId);
