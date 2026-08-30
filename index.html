@@ -318,6 +318,9 @@ h1{margin:0;font-size:22px}
 <div class="rechner">
 <div class="rechner-titel">🤖 Automatik — kaufen/shorten &amp; von selbst verkaufen</div>
 <div id="demo-bot-liste" style="font-size:13px;margin-bottom:8px"></div>
+<div class="rechner-zeile" style="margin-bottom:8px">
+<button class="grau" onclick="demoAlleBotsStoppen()">⏹️ Alle Automatiken stoppen</button>
+</div>
 <div class="rechner-zeile">
 <select id="demo-bot-coin"></select>
 <select id="demo-bot-richtung"><option value="long">▲ Long (Gewinn bei steigendem Kurs)</option><option value="short">🔻 Short (Gewinn bei fallendem Kurs)</option></select>
@@ -2142,10 +2145,23 @@ function demoBotStart(){
 function demoBotStop(botId){
   var depot=demoLaden();
   var bot=(depot.bots||[]).filter(function(b){return b.id===botId;})[0];
-  if(!bot)return;
-  demoBotEntfernen(depot,botId);
+  demoBotEntfernen(depot,botId); // entfernt Bot + löscht seine Timer (auch wenn schon weg)
   demoSpeichern(depot);
-  document.getElementById('demo-bot-status').textContent='⏹️ Automatik für '+demoName(bot.coinId)+' von Hand gestoppt. Die Position bleibt offen.';
+  document.getElementById('demo-bot-status').textContent=bot
+    ? '⏹️ Automatik für '+demoName(bot.coinId)+' von Hand gestoppt. Die Position bleibt offen.'
+    : '⏹️ Automatik gestoppt.';
+  demoFormulareAufbauen();
+  demoWerteAktualisieren();
+}
+function demoAlleBotsStoppen(){
+  var depot=demoLaden();
+  if(!(depot.bots&&depot.bots.length)){document.getElementById('demo-bot-status').textContent='Es läuft keine Automatik.';return;}
+  if(!confirm('Alle '+depot.bots.length+' laufenden Automatiken stoppen? Die Positionen bleiben offen.'))return;
+  Object.keys(demoBotTimers).forEach(function(k){clearInterval(demoBotTimers[k]);delete demoBotTimers[k];});
+  Object.keys(demoBotMaxTimers).forEach(function(k){clearTimeout(demoBotMaxTimers[k]);delete demoBotMaxTimers[k];});
+  depot.bots=[];
+  demoSpeichern(depot);
+  document.getElementById('demo-bot-status').textContent='⏹️ Alle Automatiken gestoppt. Positionen bleiben offen.';
   demoFormulareAufbauen();
   demoWerteAktualisieren();
 }
@@ -2626,8 +2642,12 @@ function demoChartPflege(depot,total){
   // Verlauf immer mitschreiben – auch wenn der Bereich zugeklappt ist
   if(neuerPunkt){
     demoLetzterEquity=jetzt;
-    demoEquityPunkt(depot,total);
-    demoSpeichern(depot);
+    // Nur den Verlauf schreiben, den Rest frisch laden – so überschreibt dieser
+    // 60-Sek-Speichervorgang keine Änderung (z. B. gestoppte Automatik) aus einem anderen Tab
+    var frisch=demoLaden();
+    demoEquityPunkt(frisch,total);
+    demoSpeichern(frisch);
+    depot.equity=frisch.equity;
   }
   // Chart nur zeichnen, wenn der Bereich offen ist
   var body=document.getElementById('body-dgv');
