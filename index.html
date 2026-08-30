@@ -422,7 +422,7 @@ Vorlagen: <a href="#" onclick="demoPreset(2,1);return false" style="color:#2962f
 <label style="font-size:13px"><input type="checkbox" id="demo-alarm-an" onchange="demoAlarmUmschalten()"> 🔔 Auto-Alarm (alle 30 Sek.)</label>
 </div>
 <div class="rechner-ergebnis" id="demo-signale" style="text-align:left;font-weight:normal;color:#ccc;font-size:13px;line-height:1.5"></div>
-<div class="signal-hinweis">Prüft die Kerzendaten (RSI, Durchschnitte, jüngstes Hoch/Tief) plus deinen Zielgewinn/Stop-Loss. Der <b>Dip-Scan</b> schaut zusätzlich alle Coins der Liste durch und meldet die, die in 24 h klar gefallen sind und gerade wieder nach oben drehen (nur 24h-Wert + Verlaufslinie, keine Vorhersage). Automatische Regelauswertung – keine Kaufempfehlung, keine Anlageberatung.</div>
+<div class="signal-hinweis">Prüft die Kerzendaten (RSI, Durchschnitte, jüngstes Hoch/Tief) plus deinen Zielgewinn/Stop-Loss. Der <b>Dip-Scan</b> schaut zusätzlich alle Coins der Liste durch: gefallen und dreht hoch → Long-Einstieg prüfen; gestiegen und dreht runter → Short-Einstieg prüfen (nur 24h-Wert + Verlaufslinie, keine Vorhersage). Automatische Regelauswertung – keine Kaufempfehlung, keine Anlageberatung.</div>
 </div>
 <div id="demo-status" class="such-hinweis"></div>
 <div id="demo-positionen" style="max-width:640px;margin:0 auto;padding:10px"></div>
@@ -2390,11 +2390,40 @@ function demoDipScan(){
   treffer.sort(function(a,b){return b.score-a.score;});
   return treffer.slice(0,4);
 }
-function demoDipScanText(dips){
-  if(!dips||!dips.length)return '';
-  return '<br><b>📉→ Dip-Scan (alle Coins):</b><br>'+dips.map(function(d){
-    return d.name+': '+d.chg.toFixed(1)+' % (24 h) gefallen und dreht gerade nach oben';
-  }).join('<br>');
+// Spiegel: stark gestiegen, nahe am Hoch, dreht gerade nach unten -> möglicher Short-Einstieg
+function demoRallyScan(){
+  var treffer=[];
+  (aktuelleCoins||[]).forEach(function(c){
+    var chg=c.price_change_percentage_24h;
+    var pts=c.sparkline_in_7d&&c.sparkline_in_7d.price;
+    if(typeof chg!=='number'||!pts||pts.length<8)return;
+    var w=pts.slice(-24); if(w.length<8)w=pts.slice(-8);
+    var n=w.length, jetzt=w[n-1];
+    var hoch=Math.max.apply(null,w);
+    if(!(hoch>0))return;
+    var vomHoch=(hoch-jetzt)/hoch*100;
+    var vor3=w[n-4]||w[0];
+    var drehtRunter=jetzt<=vor3 && jetzt<w[n-2]; // zuletzt abwärts und nicht höher als vor ~3 Schritten
+    if(chg>=5 && vomHoch<=4 && drehtRunter){
+      treffer.push({id:c.id,name:c.name,chg:chg,vomHoch:vomHoch,score:chg+(4-vomHoch)});
+    }
+  });
+  treffer.sort(function(a,b){return b.score-a.score;});
+  return treffer.slice(0,4);
+}
+function demoScanText(dips,rallys){
+  var out='';
+  if(dips&&dips.length){
+    out+='<br><b>📉→ Dip-Scan (Long-Einstieg prüfen):</b><br>'+dips.map(function(d){
+      return d.name+': '+d.chg.toFixed(1)+' % (24 h) gefallen und dreht gerade nach oben';
+    }).join('<br>');
+  }
+  if(rallys&&rallys.length){
+    out+='<br><b>🔻← Rally-Scan (Short-Einstieg prüfen):</b><br>'+rallys.map(function(r){
+      return r.name+': +'+r.chg.toFixed(1)+' % (24 h) gestiegen und dreht gerade nach unten';
+    }).join('<br>');
+  }
+  return out;
 }
 async function demoSignaleSammeln(){
   var depot=demoLaden();
@@ -2458,9 +2487,9 @@ async function demoMarktSignale(){
   var el=document.getElementById('demo-signale');
   el.textContent='⏳ prüfe Kerzendaten…';
   var r=await demoSignaleSammeln();
-  var dips=demoDipScan();
+  var dips=demoDipScan(), rallys=demoRallyScan();
   el.innerHTML=(r.zeilen.join('<br>')||'Nichts zu prüfen – erst einen Coin auswählen oder kaufen.')
-    +demoDipScanText(dips)
+    +demoScanText(dips,rallys)
     +'<br><span style="color:#ddd">Stand: '+new Date().toLocaleTimeString('de-DE')+' · nur Regeln, keine Beratung</span>';
 }
 
@@ -2505,9 +2534,9 @@ async function demoAlarmPruefen(){
   demoAlarmLaeuft=true;
   try{
     var r=await demoSignaleSammeln();
-    var dips=demoDipScan();
+    var dips=demoDipScan(), rallys=demoRallyScan();
     document.getElementById('demo-signale').innerHTML=(r.zeilen.join('<br>')||'—')
-      +demoDipScanText(dips)
+      +demoScanText(dips,rallys)
       +'<br><span style="color:#ddd">Auto-Prüfung: '+new Date().toLocaleTimeString('de-DE')+'</span>';
     var neue=[],aktiv={},starke=[];
     r.signale.forEach(function(s){
@@ -2519,6 +2548,12 @@ async function demoAlarmPruefen(){
     dips.forEach(function(d){
       var k='dip-'+d.id;aktiv[k]=1;
       var sig={id:d.id,name:d.name,art:'kauf',stark:true,text:'📉→ '+d.name+' fiel '+d.chg.toFixed(1)+' % (24 h) und dreht gerade – Einstieg prüfen'};
+      starke.push(sig);
+      if(!demoAlarmStatus[k])neue.push(sig);
+    });
+    rallys.forEach(function(rr){
+      var k='rally-'+rr.id;aktiv[k]=1;
+      var sig={id:rr.id,name:rr.name,art:'short',stark:true,text:rr.name+' stieg +'+rr.chg.toFixed(1)+' % (24 h) und dreht gerade – Short-Einstieg prüfen'};
       starke.push(sig);
       if(!demoAlarmStatus[k])neue.push(sig);
     });
