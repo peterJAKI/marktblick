@@ -424,6 +424,20 @@ Vorlagen: <a href="#" onclick="demoPreset(2,1);return false" style="color:#2962f
 <div class="rechner-ergebnis" id="demo-signale" style="text-align:left;font-weight:normal;color:#ccc;font-size:13px;line-height:1.5"></div>
 <div class="signal-hinweis">Prüft die Kerzendaten (RSI, Durchschnitte, jüngstes Hoch/Tief) plus deinen Zielgewinn/Stop-Loss. Der <b>Dip-Scan</b> schaut zusätzlich alle Coins der Liste durch: gefallen und dreht hoch → Long-Einstieg prüfen; gestiegen und dreht runter → Short-Einstieg prüfen (nur 24h-Wert + Verlaufslinie, keine Vorhersage). Automatische Regelauswertung – keine Kaufempfehlung, keine Anlageberatung.</div>
 </div>
+<div class="rechner">
+<div class="rechner-titel">🤝 Scan-Treffer automatisch handeln (Demo-Spielgeld)</div>
+<div class="rechner-zeile" style="font-size:13px">
+<label><input type="checkbox" id="demo-autoscan-an" onchange="demoAutoScanEinstellungen()"> Bei Dip-Treffer automatisch kaufen · bei Rally-Treffer automatisch shorten</label>
+</div>
+<div class="rechner-zeile">
+<span>Einsatz</span><input type="number" id="demo-autoscan-euro" step="10" min="1" style="width:80px"><span>€ pro Trade</span>
+<span>· max</span><input type="number" id="demo-autoscan-maxpos" step="1" min="1" style="width:55px"><span>offen</span>
+<span>· Sperre</span><input type="number" id="demo-autoscan-cd" step="15" min="0" style="width:60px"><span>Min./Coin</span>
+<button onclick="demoAutoScanEinstellungen()">Übernehmen</button>
+</div>
+<div class="rechner-ergebnis" id="demo-autoscan-info" style="text-align:left;font-weight:normal;font-size:13px;color:#ccc"></div>
+<div class="signal-hinweis">Öffnet bei einem Scan-Treffer selbstständig eine Position für den Einsatz und hängt sofort eine Automatik dran, die bei +Zielgewinn / −Stop-Loss (aus der Signale-Box) wieder schließt. Läuft nur, solange die App offen ist – prüft alle 60 Sek. Bremsen: fester Einsatz, Höchstzahl gleichzeitig offener Auto-Positionen, Wartezeit pro Coin nach einem Trade. Nichts wird auf einem Coin gemacht, den du von Hand hältst oder auf dem schon eine Automatik läuft. Alles Spielgeld – keine Anlageberatung.</div>
+</div>
 <div id="demo-status" class="such-hinweis"></div>
 <div id="demo-positionen" style="max-width:640px;margin:0 auto;padding:10px"></div>
 <div class="rechner" style="max-width:640px">
@@ -1563,6 +1577,11 @@ function demoLaden(){
   if(!Array.isArray(x.limitOrders))x.limitOrders=[];
   if(typeof x.zielGewinn!=='number')x.zielGewinn=2;
   if(typeof x.maxVerlust!=='number')x.maxVerlust=1;
+  if(typeof x.autoScanHandel!=='boolean')x.autoScanHandel=false;
+  if(typeof x.autoScanEuro!=='number')x.autoScanEuro=50;
+  if(typeof x.autoScanMaxPos!=='number')x.autoScanMaxPos=3;
+  if(typeof x.autoScanCooldownMin!=='number')x.autoScanCooldownMin=60;
+  if(!x.autoScanZuletzt||typeof x.autoScanZuletzt!=='object')x.autoScanZuletzt={};
   if(typeof x.signalTf!=='string')x.signalTf='5m';
   if(typeof x.alarmAn!=='boolean')x.alarmAn=false;
   if(typeof x.tresor!=='number')x.tresor=0;
@@ -1661,6 +1680,7 @@ function demoFormulareAufbauen(){
   demoShortVorschau();
   demoBotListeZeigen();
   demoLimitListeZeigen();
+  demoAutoScanInfo();
 }
 
 function demoKaufVorschau(){
@@ -1911,7 +1931,7 @@ function demoBotListeZeigen(){
           : '📈 Trailing ab +'+eur(b.gewinnEuro)+' · vorher Stopp −'+eur(b.verlustEuro))
       : 'Ziel +'+eur(b.gewinnEuro)+' / −'+eur(b.verlustEuro);
     return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:3px 0">'
-      +'<span>'+(b.richtung==='short'?'🔻 Short':'▲ Long')+' <b>'+demoName(b.coinId)+'</b> · '+eur(b.einsatz)+' · '+ziel+(b.maxMin>0?' · '+demoBotRestZeit(b)+' (max '+b.maxMin+')':'')+' · Prüfung alle '+b.pruefMin+' Min.</span>'
+      +'<span>'+(b.quelle==='scan'?'🤝 ':'')+(b.richtung==='short'?'🔻 Short':'▲ Long')+' <b>'+demoName(b.coinId)+'</b> · '+eur(b.einsatz)+' · '+ziel+(b.maxMin>0?' · '+demoBotRestZeit(b)+' (max '+b.maxMin+')':'')+' · Prüfung alle '+b.pruefMin+' Min.</span>'
       +'<button class="grau" style="padding:4px 10px" onclick="demoBotStop(\''+b.id+'\')">⏹️ Stopp</button></div>';
   }).join('');
 }
@@ -2425,6 +2445,84 @@ function demoScanText(dips,rallys){
   }
   return out;
 }
+
+// --- Scan-Treffer automatisch handeln (Demo) ---
+var demoAutoScanLaeuft=false;
+function demoAutoScanInfo(){
+  var depot=demoLaden();
+  var an=document.getElementById('demo-autoscan-an'); if(an)an.checked=!!depot.autoScanHandel;
+  var e=document.getElementById('demo-autoscan-euro'); if(e&&document.activeElement!==e)e.value=depot.autoScanEuro;
+  var m=document.getElementById('demo-autoscan-maxpos'); if(m&&document.activeElement!==m)m.value=depot.autoScanMaxPos;
+  var c=document.getElementById('demo-autoscan-cd'); if(c&&document.activeElement!==c)c.value=depot.autoScanCooldownMin;
+  var info=document.getElementById('demo-autoscan-info');
+  if(info){
+    var offen=(depot.bots||[]).filter(function(b){return b.quelle==='scan';}).length;
+    info.textContent=depot.autoScanHandel
+      ? '🤝 AN – prüft alle 60 Sek. Gerade '+offen+' von '+depot.autoScanMaxPos+' Auto-Positionen offen. Ziel/Stop je Trade aus der Signale-Box: +'+(depot.zielGewinn||2)+' % / −'+(depot.maxVerlust||1)+' %.'
+      : 'aus – der Scan meldet nur, handelt nicht.';
+  }
+}
+function demoAutoScanEinstellungen(){
+  var depot=demoLaden();
+  depot.autoScanHandel=document.getElementById('demo-autoscan-an').checked;
+  var e=parseFloat(document.getElementById('demo-autoscan-euro').value); depot.autoScanEuro=(isNaN(e)||e<1)?0:e;
+  var m=parseInt(document.getElementById('demo-autoscan-maxpos').value,10); depot.autoScanMaxPos=(isNaN(m)||m<1)?1:m;
+  var c=parseInt(document.getElementById('demo-autoscan-cd').value,10); depot.autoScanCooldownMin=(isNaN(c)||c<0)?0:c;
+  demoSpeichern(depot);
+  demoAutoScanInfo();
+  document.getElementById('demo-status').textContent='✅ Auto-Handel '+(depot.autoScanHandel?'AN':'aus')+' · '+eur(depot.autoScanEuro)+' pro Trade · max '+depot.autoScanMaxPos+' offen · Sperre '+depot.autoScanCooldownMin+' Min./Coin.';
+  if(depot.autoScanHandel){
+    try{if(!demoAudioCtx)demoAudioCtx=new (window.AudioContext||window.webkitAudioContext)();demoAudioCtx.resume();}catch(e){}
+    demoAutoScanHandelPruefen();
+  }
+}
+function demoAutoScanHandelPruefen(){
+  if(demoAutoScanLaeuft)return;
+  var depot=demoLaden();
+  if(!depot.autoScanHandel)return;
+  demoAutoScanLaeuft=true;
+  try{
+    var euro=depot.autoScanEuro||0;
+    var maxPos=depot.autoScanMaxPos||0;
+    var cdMs=(depot.autoScanCooldownMin||0)*60000;
+    var zg=depot.zielGewinn||2, mv=depot.maxVerlust||1;
+    var offeneScan=(depot.bots||[]).filter(function(b){return b.quelle==='scan';}).length;
+    if(euro>=1 && offeneScan<maxPos){
+      var kand=[];
+      demoDipScan().forEach(function(d){kand.push({id:d.id,name:d.name,art:'long'});});
+      demoRallyScan().forEach(function(r){kand.push({id:r.id,name:r.name,art:'short'});});
+      for(var i=0;i<kand.length;i++){
+        if(offeneScan>=maxPos)break;
+        var k=kand[i];
+        if(depot.positionen[k.id]&&depot.positionen[k.id].menge>1e-12)continue;
+        if(depot.shorts[k.id]&&depot.shorts[k.id].menge>1e-12)continue;
+        if((depot.bots||[]).some(function(b){return b.coinId===k.id;}))continue;
+        var last=(depot.autoScanZuletzt||{})[k.id]||0;
+        if(cdMs>0 && Date.now()-last<cdMs)continue;
+        if(euro>depot.bar)continue;
+        var vl=Math.max(euro*mv/100, demoGebuehrFuer(euro,depot)*2.5);
+        var gw=Math.max(euro*zg/100, vl*0.5+0.01);
+        var r=(k.art==='short')?demoShortOeffnenCore(k.id,euro):demoKaufCore(k.id,euro);
+        if(!r.ok)continue;
+        var d2=demoLaden();
+        var menge=(k.art==='short')?(d2.shorts[k.id]?d2.shorts[k.id].menge:0):(d2.positionen[k.id]?d2.positionen[k.id].menge:0);
+        var botId='b'+Date.now()+Math.floor(Math.random()*1000);
+        d2.bots.push({id:botId,richtung:k.art,coinId:k.id,einsatz:euro,gewinnEuro:gw,verlustEuro:vl,pruefMin:5,menge:menge,maxMin:0,startZeit:Date.now(),trailing:false,trailAktiv:false,trailHoch:0,quelle:'scan'});
+        d2.autoScanZuletzt=d2.autoScanZuletzt||{};
+        d2.autoScanZuletzt[k.id]=Date.now();
+        demoSpeichern(d2);
+        demoBotTimerSetzen(botId,5);
+        offeneScan++;
+        depot=d2;
+        demoBotAlarm('🤝 Auto-Handel nach Scan: '+(k.art==='short'?'🔻 Short ':'▲ Kauf ')+k.name+' für '+eur(euro)+' – Ausstieg automatisch bei +'+eur(gw)+' / −'+eur(vl)+'.');
+      }
+    }
+    demoFormulareAufbauen();
+    demoWerteAktualisieren();
+  }catch(e){}
+  demoAutoScanLaeuft=false;
+}
+setInterval(demoAutoScanHandelPruefen,60000);
 async function demoSignaleSammeln(){
   var depot=demoLaden();
   var tf=depot.signalTf||'5m';
@@ -2891,7 +2989,7 @@ function demoZuruecksetzen(){
   var alt=demoLaden();
   Object.keys(demoBotTimers).forEach(function(k){clearInterval(demoBotTimers[k]);delete demoBotTimers[k];});
   Object.keys(demoBotMaxTimers).forEach(function(k){clearTimeout(demoBotMaxTimers[k]);delete demoBotMaxTimers[k];});
-  demoSpeichern({bar:DEMO_START,positionen:{},shorts:{},bots:[],verlauf:[],tresor:0,tresorVerlauf:[],gebuehrProzent:alt.gebuehrProzent,gebuehrMin:alt.gebuehrMin,zielGewinn:alt.zielGewinn,maxVerlust:alt.maxVerlust,signalTf:alt.signalTf,alarmAn:alt.alarmAn,handelsziel:alt.handelsziel,autoSichern:alt.autoSichern,autoStop:alt.autoStop});
+  demoSpeichern({bar:DEMO_START,positionen:{},shorts:{},bots:[],verlauf:[],tresor:0,tresorVerlauf:[],limitOrders:[],gebuehrProzent:alt.gebuehrProzent,gebuehrMin:alt.gebuehrMin,zielGewinn:alt.zielGewinn,maxVerlust:alt.maxVerlust,signalTf:alt.signalTf,alarmAn:alt.alarmAn,handelsziel:alt.handelsziel,autoSichern:alt.autoSichern,autoStop:alt.autoStop,autoScanHandel:alt.autoScanHandel,autoScanEuro:alt.autoScanEuro,autoScanMaxPos:alt.autoScanMaxPos,autoScanCooldownMin:alt.autoScanCooldownMin});
   demoTradeFlag=true;
   demoFormulareAufbauen();
   demoWerteAktualisieren();
