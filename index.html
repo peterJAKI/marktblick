@@ -313,6 +313,10 @@ h1{margin:0;font-size:22px}
 <button id="demo-klasse-krypto" class="grau" onclick="demoHandelKlasse('krypto')">🪙 Krypto</button>
 <button id="demo-klasse-aktien" class="grau" onclick="demoHandelKlasse('aktien')">📈 Aktien</button>
 </div>
+<div class="rechner-zeile" style="margin-top:8px">
+<input type="text" id="demo-handel-suche" placeholder="🔍 Suchen … (z. B. sol, aapl, bitcoin)" oninput="demoHandelSucheAenderung()" autocomplete="off" style="flex:1;min-width:0;padding:8px 12px;border-radius:10px;border:1px solid #333;background:#121212;color:#eee;font-size:14px">
+<button class="grau" onclick="demoHandelSucheLeeren()">✕</button>
+</div>
 <div id="demo-klasse-info" style="font-size:12px;color:#888;margin-top:6px"></div>
 </div>
 <div class="rechner">
@@ -1938,6 +1942,18 @@ function demoHandelKlasse(k){
   demoSpeichern(depot);
   demoFormulareAufbauen();
 }
+var demoHandelFilter='';
+function demoHandelSucheAenderung(){
+  var el=document.getElementById('demo-handel-suche');
+  demoHandelFilter=el?(el.value||'').trim().toLowerCase():'';
+  demoFormulareAufbauen();
+}
+function demoHandelSucheLeeren(){
+  var el=document.getElementById('demo-handel-suche');
+  if(el)el.value='';
+  demoHandelFilter='';
+  demoFormulareAufbauen();
+}
 function demoHandelKlasseAnzeigen(k){
   var kb=document.getElementById('demo-klasse-krypto'), ab=document.getElementById('demo-klasse-aktien');
   if(kb)kb.style.background=(k==='krypto')?'#2962ff':'#333';
@@ -1954,12 +1970,15 @@ function demoFormulareAufbauen(){
   var depot=demoLaden();
   var vK=kaufSel.value,vV=verkSel.value;
   var klasse=depot.handelKlasse||'krypto';
-  var kryptoOpt=aktuelleCoins.map(function(c){return '<option value="'+c.id+'">'+c.name+' ('+c.symbol.toUpperCase()+')</option>';}).join('');
-  var aktienItems=demoAktienAlle().filter(function(a){var d=aktienDaten[a.symbol];return d&&typeof d.price==='number'&&d.price>0;});
+  var f=demoHandelFilter||'';
+  var passt=function(name,sym){ return !f || name.toLowerCase().indexOf(f)>=0 || (sym||'').toLowerCase().indexOf(f)>=0; };
+  var kryptoOpt=aktuelleCoins.filter(function(c){return passt(c.name,c.symbol);})
+    .map(function(c){return '<option value="'+c.id+'">'+c.name+' ('+c.symbol.toUpperCase()+')</option>';}).join('');
+  var aktienItems=demoAktienAlle().filter(function(a){var d=aktienDaten[a.symbol];return d&&typeof d.price==='number'&&d.price>0&&passt(a.name,a.symbol);});
   var aktienOpt=aktienItems.map(function(a){return '<option value="aktie:'+a.symbol+'">'+a.name+' ('+a.symbol+')</option>';}).join('');
   var handelOpt=(klasse==='aktien')
-    ? (aktienOpt||'<option value="">— keine Aktie mit Live-Kurs —</option>')
-    : kryptoOpt;
+    ? (aktienOpt||'<option value="">— keine Aktie gefunden —</option>')
+    : (kryptoOpt||'<option value="">— kein Coin gefunden —</option>');
   var gueltig=function(v){
     if(!v)return false;
     return (klasse==='aktien')?/^aktie:/.test(v):aktuelleCoins.some(function(c){return c.id===v;});
