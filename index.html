@@ -1969,12 +1969,22 @@ function macheCombo(id){
       var leer=document.createElement('div'); leer.className='combo-opt'; leer.style.color='#888'; leer.textContent='— nichts gefunden —';
       list.appendChild(leer); return;
     }
-    treffer.slice(0,80).forEach(function(o){
+    // Ohne Eingabe nur die ersten paar zeigen (kein langes Scrollen); Tippen filtert alles.
+    var limit=f?60:8;
+    var gesamt=treffer.length;
+    treffer=treffer.slice(0,limit);
+    treffer.forEach(function(o){
       var d=document.createElement('div');
       d.className='combo-opt'; d.textContent=o.text;
       d.addEventListener('mousedown',function(e){ e.preventDefault(); waehle(o.value,o.text); });
       list.appendChild(d);
     });
+    if(gesamt>limit){
+      var mehr=document.createElement('div');
+      mehr.className='combo-opt'; mehr.style.color='#888'; mehr.style.cursor='default';
+      mehr.textContent='… noch '+(gesamt-limit)+' – Namen tippen zum Filtern';
+      list.appendChild(mehr);
+    }
   }
   function waehle(val,text){
     sel.value=val; inp.value=text; list.classList.remove('auf');
