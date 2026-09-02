@@ -71,6 +71,13 @@ h1{margin:0;font-size:22px}
 .rechner input,.rechner select{padding:9px 12px;border-radius:10px;border:1px solid #333;background:#121212;color:#eee;font-size:14px}
 .rechner input{width:100px}
 .rechner select{flex:1;min-width:120px}
+.combo{position:relative;flex:1;min-width:120px}
+.combo>select{display:none}
+.combo .combo-input{width:100%;padding:9px 12px;border-radius:10px;border:1px solid #333;background:#121212;color:#eee;font-size:14px;box-sizing:border-box}
+.combo-list{position:absolute;left:0;right:0;top:calc(100% + 3px);z-index:60;background:#1b1b1b;border:1px solid #555;border-radius:10px;max-height:260px;overflow:auto;display:none;box-shadow:0 8px 22px rgba(0,0,0,.6)}
+.combo-list.auf{display:block}
+.combo-opt{padding:9px 12px;font-size:14px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#eee}
+.combo-opt:hover{background:#2962ff;color:#fff}
 .rechner-ergebnis{margin-top:10px;font-size:16px;font-weight:bold;color:#4caf50;text-align:center}
 #liste .coin{cursor:pointer}
 .chart-panel{max-width:640px;margin:12px auto 0;padding:12px;background:#000;border:1px solid #333;border-radius:12px}
@@ -313,11 +320,7 @@ h1{margin:0;font-size:22px}
 <button id="demo-klasse-krypto" class="grau" onclick="demoHandelKlasse('krypto')">🪙 Krypto</button>
 <button id="demo-klasse-aktien" class="grau" onclick="demoHandelKlasse('aktien')">📈 Aktien</button>
 </div>
-<div class="rechner-zeile" style="margin-top:8px">
-<input type="text" id="demo-handel-suche" placeholder="🔍 Suchen … (z. B. sol, aapl, bitcoin)" oninput="demoHandelSucheAenderung()" autocomplete="off" style="flex:1;min-width:0;padding:8px 12px;border-radius:10px;border:1px solid #333;background:#121212;color:#eee;font-size:14px">
-<button class="grau" onclick="demoHandelSucheLeeren()">✕</button>
-</div>
-<div id="demo-klasse-info" style="font-size:12px;color:#888;margin-top:6px"></div>
+<div id="demo-klasse-info" style="font-size:12px;color:#888;margin-top:6px">Tipp: In den Auswahlfeldern unten kannst du tippen, um zu suchen.</div>
 </div>
 <div class="rechner">
 <div class="rechner-titel">🤖 Automatik — kaufen/shorten &amp; von selbst verkaufen</div>
@@ -1942,18 +1945,61 @@ function demoHandelKlasse(k){
   demoSpeichern(depot);
   demoFormulareAufbauen();
 }
-var demoHandelFilter='';
-function demoHandelSucheAenderung(){
-  var el=document.getElementById('demo-handel-suche');
-  demoHandelFilter=el?(el.value||'').trim().toLowerCase():'';
-  demoFormulareAufbauen();
+// Auswahlfeld mit Tipp-Suche: macht aus einem <select> ein durchsuchbares Feld
+function macheCombo(id){
+  var sel=document.getElementById(id);
+  if(!sel||sel.dataset.combo)return;
+  sel.dataset.combo='1';
+  var wrap=document.createElement('span');
+  wrap.className='combo';
+  sel.parentNode.insertBefore(wrap,sel);
+  wrap.appendChild(sel);
+  var inp=document.createElement('input');
+  inp.type='text'; inp.className='combo-input'; inp.autocomplete='off';
+  inp.setAttribute('autocorrect','off'); inp.setAttribute('autocapitalize','off'); inp.spellcheck=false;
+  inp.placeholder='tippen zum Suchen…';
+  var list=document.createElement('div');
+  list.className='combo-list';
+  wrap.appendChild(inp); wrap.appendChild(list);
+  function baueListe(filter){
+    var f=(filter||'').trim().toLowerCase();
+    list.innerHTML='';
+    var treffer=[].slice.call(sel.options).filter(function(o){return o.value&&(!f||o.text.toLowerCase().indexOf(f)>=0);});
+    if(!treffer.length){
+      var leer=document.createElement('div'); leer.className='combo-opt'; leer.style.color='#888'; leer.textContent='— nichts gefunden —';
+      list.appendChild(leer); return;
+    }
+    treffer.slice(0,80).forEach(function(o){
+      var d=document.createElement('div');
+      d.className='combo-opt'; d.textContent=o.text;
+      d.addEventListener('mousedown',function(e){ e.preventDefault(); waehle(o.value,o.text); });
+      list.appendChild(d);
+    });
+  }
+  function waehle(val,text){
+    sel.value=val; inp.value=text; list.classList.remove('auf');
+    if(typeof sel.onchange==='function')sel.onchange();
+    else sel.dispatchEvent(new Event('change'));
+  }
+  function syncInput(){
+    var o=sel.options[sel.selectedIndex];
+    if(document.activeElement!==inp)inp.value=o?o.text:'';
+  }
+  inp.addEventListener('focus',function(){ inp.value=''; baueListe(''); list.classList.add('auf'); });
+  inp.addEventListener('input',function(){ baueListe(inp.value); list.classList.add('auf'); });
+  inp.addEventListener('blur',function(){ setTimeout(function(){ list.classList.remove('auf'); syncInput(); },160); });
+  sel._comboSync=syncInput;
+  syncInput();
 }
-function demoHandelSucheLeeren(){
-  var el=document.getElementById('demo-handel-suche');
-  if(el)el.value='';
-  demoHandelFilter='';
-  demoFormulareAufbauen();
+function comboSyncAlle(){
+  ['demo-kauf-coin','demo-verkauf-coin','demo-short-coin','demo-bot-coin','demo-limit-coin'].forEach(function(id){
+    var s=document.getElementById(id);
+    if(s&&s._comboSync)s._comboSync();
+  });
 }
+(function(){
+  ['demo-kauf-coin','demo-verkauf-coin','demo-short-coin','demo-bot-coin','demo-limit-coin'].forEach(macheCombo);
+})();
 function demoHandelKlasseAnzeigen(k){
   var kb=document.getElementById('demo-klasse-krypto'), ab=document.getElementById('demo-klasse-aktien');
   if(kb)kb.style.background=(k==='krypto')?'#2962ff':'#333';
@@ -1970,15 +2016,12 @@ function demoFormulareAufbauen(){
   var depot=demoLaden();
   var vK=kaufSel.value,vV=verkSel.value;
   var klasse=depot.handelKlasse||'krypto';
-  var f=demoHandelFilter||'';
-  var passt=function(name,sym){ return !f || name.toLowerCase().indexOf(f)>=0 || (sym||'').toLowerCase().indexOf(f)>=0; };
-  var kryptoOpt=aktuelleCoins.filter(function(c){return passt(c.name,c.symbol);})
-    .map(function(c){return '<option value="'+c.id+'">'+c.name+' ('+c.symbol.toUpperCase()+')</option>';}).join('');
-  var aktienItems=demoAktienAlle().filter(function(a){var d=aktienDaten[a.symbol];return d&&typeof d.price==='number'&&d.price>0&&passt(a.name,a.symbol);});
+  var kryptoOpt=aktuelleCoins.map(function(c){return '<option value="'+c.id+'">'+c.name+' ('+c.symbol.toUpperCase()+')</option>';}).join('');
+  var aktienItems=demoAktienAlle().filter(function(a){var d=aktienDaten[a.symbol];return d&&typeof d.price==='number'&&d.price>0;});
   var aktienOpt=aktienItems.map(function(a){return '<option value="aktie:'+a.symbol+'">'+a.name+' ('+a.symbol+')</option>';}).join('');
   var handelOpt=(klasse==='aktien')
-    ? (aktienOpt||'<option value="">— keine Aktie gefunden —</option>')
-    : (kryptoOpt||'<option value="">— kein Coin gefunden —</option>');
+    ? (aktienOpt||'<option value="">— keine Aktie mit Live-Kurs —</option>')
+    : kryptoOpt;
   var gueltig=function(v){
     if(!v)return false;
     return (klasse==='aktien')?/^aktie:/.test(v):aktuelleCoins.some(function(c){return c.id===v;});
@@ -1999,6 +2042,7 @@ function demoFormulareAufbauen(){
     sel.innerHTML=handelOpt;
     if(gueltig(v))sel.value=v;
   });
+  comboSyncAlle();
   demoGebuehrInfo();
   demoKaufVorschau();
   demoShortVorschau();
