@@ -116,7 +116,7 @@ h1{margin:0;font-size:22px}
 <body>
 <header>
 <h1>📊 Marktblick</h1>
-<div class="sub">Kurse in Echtzeit · Stand 03.09.2026 (Aktien-Infos)</div>
+<div class="sub">Kurse in Echtzeit · Stand 03.09.2026 (Aktien-Infos 2)</div>
 </header>
 <div class="tabs">
 <button class="tab-btn active" id="tab-krypto" onclick="wechsleTab('krypto')">🪙 Krypto</button>
@@ -225,8 +225,6 @@ h1{margin:0;font-size:22px}
 <button onclick="aktieHinzufuegen()">➕ Hinzufügen</button>
 </div>
 <div class="such-hinweis" id="aktien-such-status"></div>
-<div class="such-hinweis">👆 Auf eine Aktie tippen für Hintergrund-Infos.</div>
-<div class="rechner" id="aktien-info-panel" style="display:none;max-width:640px"></div>
 <div class="demo-alarm" id="aktien-alarm-banner" style="display:none"></div>
 <div class="rechner">
 <div class="rechner-titel">🔔 Kurs-Alarm Aktien</div>
@@ -268,6 +266,8 @@ h1{margin:0;font-size:22px}
 </div>
 </div>
 <div id="aktien-status" style="text-align:center;padding:8px;font-size:13px;color:#888">⏳ Lade Aktienkurse...</div>
+<div class="such-hinweis">👆 Auf eine Aktie tippen für Hintergrund-Infos.</div>
+<div class="rechner" id="aktien-info-panel" style="display:none;max-width:640px"></div>
 <div id="aktien-liste" style="max-width:640px;margin:0 auto;padding:10px"></div>
 </div>
 <div id="ansicht-rohstoffe" style="display:none">
@@ -1030,7 +1030,7 @@ function aktieMarktkap(mio){
 }
 function aktieZeile(label,wert){
   if(wert===undefined||wert===null||wert===''||wert==='–')return '';
-  return '<div style="display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px solid #222"><span style="color:#888">'+label+'</span><span style="text-align:right">'+wert+'</span></div>';
+  return '<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid #333"><span style="color:#cfcfcf">'+label+'</span><span style="text-align:right;font-weight:bold">'+wert+'</span></div>';
 }
 async function aktieInfoOeffnen(sym){
   var el=document.getElementById('aktien-info-panel');
@@ -1038,7 +1038,8 @@ async function aktieInfoOeffnen(sym){
   if(aktieInfoAktiv===sym && el.style.display!=='none'){ el.style.display='none'; aktieInfoAktiv=null; return; }
   aktieInfoAktiv=sym;
   el.style.display='block';
-  el.innerHTML='<div class="chart-kopf"><span>'+sym+'</span><button class="chart-zu" onclick="document.getElementById(\'aktien-info-panel\').style.display=\'none\'">✕</button></div><div style="color:#888;font-size:13px">⏳ Infos werden geladen…</div>';
+  el.innerHTML='<div class="chart-kopf"><span>'+sym+'</span><button class="chart-zu" onclick="document.getElementById(\'aktien-info-panel\').style.display=\'none\'">✕</button></div><div style="color:#ccc;font-size:13px">⏳ Infos werden geladen…</div>';
+  try{ el.scrollIntoView({behavior:'smooth',block:'nearest'}); }catch(e){}
   try{
     if(!aktieInfoCache[sym]){
       var r=await Promise.all([
