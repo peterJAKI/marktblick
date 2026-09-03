@@ -116,7 +116,7 @@ h1{margin:0;font-size:22px}
 <body>
 <header>
 <h1>📊 Marktblick</h1>
-<div class="sub">Kurse in Echtzeit · Stand 03.09.2026 (Aktie: Heute-Zeile)</div>
+<div class="sub">Kurse in Echtzeit · Stand 03.09.2026 (Coin: Heute-Zeile)</div>
 </header>
 <div class="tabs">
 <button class="tab-btn active" id="tab-krypto" onclick="wechsleTab('krypto')">🪙 Krypto</button>
@@ -1580,9 +1580,21 @@ function coinInfoZeile(symbol){
     return v.toLocaleString('de-DE',{maximumFractionDigits:0});
   };
   var pr=function(v){return (typeof v==='number'&&isFinite(v))?v.toLocaleString('de-DE',{maximumFractionDigits:v<1?6:2})+' €':'–';};
-  el.innerHTML='Rang #'+(c.market_cap_rank||'?')
+  var pct=c.price_change_percentage_24h;
+  var heute='';
+  if(typeof pct==='number'&&typeof c.current_price==='number'&&c.current_price>0){
+    var diff=c.current_price-(c.current_price/(1+pct/100));
+    var farbe=diff>=0?'#4caf50':'#f44336';
+    heute='<span style="color:'+farbe+';font-weight:bold">Heute '+(diff>=0?'+':'−')
+      +Math.abs(diff).toLocaleString('de-DE',{maximumFractionDigits:Math.abs(diff)<1?4:2})+' € ('
+      +(diff>=0?'+':'−')+Math.abs(pct).toFixed(2)+' %)</span><br>';
+  }
+  var spanne=(typeof c.low_24h==='number'&&typeof c.high_24h==='number')?' · Tagesspanne '+pr(c.low_24h)+' – '+pr(c.high_24h):'';
+  el.innerHTML=heute
+    +'Rang #'+(c.market_cap_rank||'?')
     +' · Allzeithoch '+pr(c.ath)+(typeof c.ath_change_percentage==='number'?' ('+c.ath_change_percentage.toFixed(0)+' %)':'')
     +' · Allzeittief '+pr(c.atl)
+    +spanne
     +' · 24h-Volumen '+kurz(c.total_volume)+' €'
     +' · Umlauf '+kurz(c.circulating_supply)+' '+symbol.toUpperCase()
     +(c.max_supply?' / max '+kurz(c.max_supply):'');
