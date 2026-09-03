@@ -116,7 +116,7 @@ h1{margin:0;font-size:22px}
 <body>
 <header>
 <h1>📊 Marktblick</h1>
-<div class="sub">Kurse in Echtzeit · Stand 03.09.2026 (Sparplan: Extra einzahlen)</div>
+<div class="sub">Kurse in Echtzeit · Stand 03.09.2026 (Sparplan-Extra: auch Coins)</div>
 </header>
 <div class="tabs">
 <button class="tab-btn active" id="tab-krypto" onclick="wechsleTab('krypto')">🪙 Krypto</button>
@@ -560,7 +560,7 @@ Vorlagen: <a href="#" onclick="demoPreset(2,1);return false" style="color:#2962f
 <input type="number" id="spl-extra-betrag" value="50" min="1" step="5" style="width:70px"><span>€</span>
 <button class="grau" onclick="sparplanExtraKauf()">Jetzt kaufen</button>
 </div>
-<div class="rechner-zeile" style="color:#888;font-size:12px;margin-top:-2px">Einmaliger Kauf aus „Restgeld" – beliebige Aktie, wird eigene Position im Sparplan.</div>
+<div class="rechner-zeile" style="color:#888;font-size:12px;margin-top:-2px">Einmaliger Kauf aus „Restgeld" – beliebige Aktie oder Coin, wird eigene Position im Sparplan.</div>
 <div id="spl-status" style="font-size:13px;color:#ccc;line-height:1.7;margin-top:6px"></div>
 <div id="spl-chart" style="height:190px;margin-top:6px"></div>
 <div id="spl-legende" style="display:none;font-size:12px;color:#999;margin-top:3px">
@@ -825,6 +825,7 @@ async function ladeKurse(){
     document.getElementById('liste').innerHTML=html;
     aktuelleCoins=coins;
     fuelleRechnerDropdown();
+    if(typeof sparplanExtraDropdown==='function')sparplanExtraDropdown();
     kryptoAlarmDropdown();
     kryptoAlarmePruefen();
     berechne();
@@ -3757,20 +3758,30 @@ function sparplanLaden(){
   return d;
 }
 function sparplanSpeichern(d){localStorage.setItem('mb_sparplan',JSON.stringify(d));}
+function sparplanCoinId(sym){ return sym.indexOf('coin:')===0 ? sym.slice(5) : null; }
 function sparplanName(sym){
+  var cid=sparplanCoinId(sym);
+  if(cid){ var c=(aktuelleCoins||[]).filter(function(x){return x.id===cid;})[0]; return c?c.name:cid; }
   var p=SPL_POOL.filter(function(x){return x.sym===sym;})[0];
   if(p)return p.name;
   var a=aktienListe.concat(getEigeneAktien()).filter(function(x){return x&&x.symbol===sym;})[0];
   return a?a.name:sym;
 }
+function sparplanKuerzel(sym){
+  var cid=sparplanCoinId(sym);
+  if(cid){ var c=(aktuelleCoins||[]).filter(function(x){return x.id===cid;})[0]; return c?c.symbol.toUpperCase():cid; }
+  return sym;
+}
 function sparplanExtraDropdown(){
   var sel=document.getElementById('spl-extra-a'); if(!sel)return;
-  var seen={}, opts=[];
-  SPL_POOL.forEach(function(p){ if(!seen[p.sym]){seen[p.sym]=1; opts.push({s:p.sym,n:p.name});} });
-  aktienListe.concat(getEigeneAktien()).forEach(function(a){ if(a&&a.symbol&&!seen[a.symbol]){seen[a.symbol]=1; opts.push({s:a.symbol,n:a.name||a.symbol});} });
+  var seen={}, aktien=[];
+  SPL_POOL.forEach(function(p){ if(!seen[p.sym]){seen[p.sym]=1; aktien.push({v:p.sym,n:p.name+' ('+p.sym+')'});} });
+  aktienListe.concat(getEigeneAktien()).forEach(function(a){ if(a&&a.symbol&&!seen[a.symbol]){seen[a.symbol]=1; aktien.push({v:a.symbol,n:(a.name||a.symbol)+' ('+a.symbol+')'});} });
+  var coins=(aktuelleCoins||[]).map(function(c){return {v:'coin:'+c.id,n:c.name+' ('+c.symbol.toUpperCase()+')'};});
   var cur=sel.value;
-  sel.innerHTML=opts.map(function(o){return '<option value="'+o.s+'">'+o.n+' ('+o.s+')</option>';}).join('');
-  if(cur)sel.value=cur;
+  function grp(label,arr){ return '<optgroup label="'+label+'">'+arr.map(function(o){return '<option value="'+o.v+'">'+o.n+'</option>';}).join('')+'</optgroup>'; }
+  sel.innerHTML=grp('Aktien',aktien)+(coins.length?grp('Coins',coins):'');
+  if(cur){ sel.value=cur; }
 }
 async function sparplanExtraKauf(){
   var st=document.getElementById('spl-status');
@@ -3823,6 +3834,11 @@ function sparplanDropdowns(){
 }
 
 async function sparplanPreisEUR(sym){
+  var cid=sparplanCoinId(sym);
+  if(cid){
+    var c=(aktuelleCoins||[]).filter(function(x){return x.id===cid;})[0];
+    return (c&&typeof c.current_price==='number'&&c.current_price>0)?c.current_price:null;
+  }
   var dd=aktienDaten[sym];
   var rate=(eurUsdRate&&eurUsdRate>0)?eurUsdRate:1;
   if(dd&&typeof dd.price==='number'&&dd.price>0) return dd.price*rate;
@@ -3882,7 +3898,9 @@ async function sparplanRateAusfuehren(){
     var alleSym=Object.keys(d.positionen); // Plan-Aktien + Extra-Positionen
     var divBrutto=0, proPos={};
     for(var j=0;j<alleSym.length;j++){
-      var sy=alleSym[j], dps=await sparplanDivProShareEUR(sy,d.divProShare);
+      var sy=alleSym[j];
+      if(sparplanCoinId(sy)){ proPos[sy]=0; continue; } // Coins zahlen keine Dividende
+      var dps=await sparplanDivProShareEUR(sy,d.divProShare);
       d.divProShare[sy]=dps;
       var bpos=(d.positionen[sy]?d.positionen[sy].menge:0)*dps;
       proPos[sy]=bpos; divBrutto+=bpos;
@@ -3983,14 +4001,18 @@ async function sparplanZeile(d,s){
   var p=await sparplanPreisEUR(s);
   var pos=d.positionen[s]||{menge:0,kosten:0};
   var wS=p?pos.menge*p:0;
-  var ad=aktienDaten[s]||{};
-  var pctTxt='';
-  if(typeof ad.price==='number'&&typeof ad.previousClose==='number'&&ad.previousClose>0){
-    var pc=(ad.price-ad.previousClose)/ad.previousClose*100;
-    pctTxt=' <span style="color:'+(pc>=0?'#4caf50':'#f44336')+';font-weight:bold">'+(pc>=0?'▲ +':'▼ −')+Math.abs(pc).toFixed(2)+' %</span>';
+  var cid=sparplanCoinId(s), pc=null;
+  if(cid){
+    var cc=(aktuelleCoins||[]).filter(function(x){return x.id===cid;})[0];
+    if(cc&&typeof cc.price_change_percentage_24h==='number')pc=cc.price_change_percentage_24h;
+  }else{
+    var ad=aktienDaten[s]||{};
+    if(typeof ad.price==='number'&&typeof ad.previousClose==='number'&&ad.previousClose>0)pc=(ad.price-ad.previousClose)/ad.previousClose*100;
   }
-  return '<div style="margin-bottom:5px"><b>'+sparplanName(s)+'</b> ('+s+')'+pctTxt
-    +'<br><span style="color:#bbb">'+pos.menge.toLocaleString('de-DE',{maximumFractionDigits:4})+' Stück · Kurs '+(p?eur(p):'–')
+  var pctTxt=(pc==null)?'':' <span style="color:'+(pc>=0?'#4caf50':'#f44336')+';font-weight:bold">'+(pc>=0?'▲ +':'▼ −')+Math.abs(pc).toFixed(2)+' %</span>';
+  var einheit=cid?' Coins':' Stück';
+  return '<div style="margin-bottom:5px"><b>'+sparplanName(s)+'</b> ('+sparplanKuerzel(s)+')'+pctTxt
+    +'<br><span style="color:#bbb">'+pos.menge.toLocaleString('de-DE',{maximumFractionDigits:cid?6:4})+einheit+' · Kurs '+(p?eur(p):'–')
     +' · Wert '+eur(wS)+' <span style="color:#888">(eingezahlt '+eur(pos.kosten||0)+')</span></span></div>';
 }
 async function sparplanAnzeigen(){
