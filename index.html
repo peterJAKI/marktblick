@@ -116,7 +116,7 @@ h1{margin:0;font-size:22px}
 <body>
 <header>
 <h1>📊 Marktblick</h1>
-<div class="sub">Kurse in Echtzeit · Stand 03.09.2026 (Aktien-Infos 2)</div>
+<div class="sub">Kurse in Echtzeit · Stand 03.09.2026 (mehr Funktionen)</div>
 </header>
 <div class="tabs">
 <button class="tab-btn active" id="tab-krypto" onclick="wechsleTab('krypto')">🪙 Krypto</button>
@@ -140,6 +140,7 @@ h1{margin:0;font-size:22px}
 </div>
 <div class="chart-panel" id="chart-panel" style="display:none">
 <div class="chart-kopf"><span><span id="chart-titel">—</span><span class="chart-live" id="chart-live">–</span></span><span class="chart-btns"><button class="chart-zu" id="chart-voll-btn" onclick="chartVollbild()" title="Vollbild">⛶</button><button class="chart-zu" onclick="chartSchliessen()" title="Schließen">✕</button></span></div>
+<div id="coin-info-zeile" style="font-size:12px;color:#cfcfcf;margin:2px 0 6px;line-height:1.6"></div>
 <div class="chart-zeitrahmen">
 <button data-tf="1m" onclick="chartZeitrahmen('1m')">1m</button>
 <button data-tf="3m" onclick="chartZeitrahmen('3m')">3m</button>
@@ -216,6 +217,18 @@ h1{margin:0;font-size:22px}
 </div>
 <div id="fng-box"><div id="fng-ring">⏳</div><div id="fng-text"><div id="fng-titel">Markt-Stimmung (Fear &amp; Greed)</div><div id="fng-wert">lädt…</div></div></div>
 <div id="status">⏳ Lade Kurse...</div>
+<div class="demo-alarm" id="krypto-alarm-banner" style="display:none"></div>
+<div class="rechner">
+<div class="rechner-titel">🔔 Kurs-Alarm Krypto</div>
+<div class="rechner-zeile">
+<select id="krypto-alarm-id"></select>
+<select id="krypto-alarm-richtung"><option value="ueber">steigt über</option><option value="unter">fällt unter</option></select>
+<input type="number" id="krypto-alarm-preis" placeholder="€" step="any" style="width:90px">
+<button onclick="kryptoAlarmHinzufuegen()">➕ Alarm</button>
+</div>
+<div id="krypto-alarm-liste" style="font-size:13px;margin-top:6px"></div>
+<div class="signal-hinweis">Ton + Meldung, sobald der Live-Kurs deine €-Marke erreicht. Läuft nur, solange die App offen ist – kein System-Push.</div>
+</div>
 <div id="liste"></div>
 <button class="refresh-btn" onclick="ladeKurse()">🔄 Aktualisieren</button>
 </div>
@@ -526,6 +539,7 @@ Vorlagen: <a href="#" onclick="demoPreset(2,1);return false" style="color:#2962f
 <div class="rechner-body" id="body-dtf">
 <div class="rechner-zeile">
 <button onclick="demoExportieren()">📤 Exportieren + kopieren</button>
+<button class="grau" onclick="demoDepotDatei()">💾 Als Datei sichern</button>
 </div>
 <textarea id="demo-transfer" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Hier erscheint beim Exportieren der Code." style="width:100%;height:80px;margin-top:8px;border-radius:8px;border:1px solid #333;background:#121212;color:#eee;font-size:12px;padding:8px;box-sizing:border-box"></textarea>
 <div class="rechner-zeile" style="margin-top:6px">
@@ -776,6 +790,8 @@ async function ladeKurse(){
     document.getElementById('liste').innerHTML=html;
     aktuelleCoins=coins;
     fuelleRechnerDropdown();
+    kryptoAlarmDropdown();
+    kryptoAlarmePruefen();
     berechne();
     berechne2();
     if(document.getElementById('ansicht-demo').style.display!=='none')demoFormulareAufbauen();
@@ -856,6 +872,7 @@ function starteLiveTicker(liveKandidaten){
         coin.current_price=parseFloat(d.c)*eurUsdRate;
         coin.price_change_percentage_24h=parseFloat(d.P);
         aktualisiereZeile(coin);
+        kryptoAlarmePruefen();
         berechne();
         berechne2();
         demoWerteAktualisieren();
@@ -1040,16 +1057,21 @@ async function aktieInfoOeffnen(sym){
   el.style.display='block';
   el.innerHTML='<div class="chart-kopf"><span>'+sym+'</span><button class="chart-zu" onclick="document.getElementById(\'aktien-info-panel\').style.display=\'none\'">✕</button></div><div style="color:#ccc;font-size:13px">⏳ Infos werden geladen…</div>';
   try{ el.scrollIntoView({behavior:'smooth',block:'nearest'}); }catch(e){}
+  var heute=new Date().toISOString().slice(0,10);
   try{
     if(!aktieInfoCache[sym]){
+      var bis=new Date(Date.now()+220*86400000).toISOString().slice(0,10);
       var r=await Promise.all([
         fetch('https://finnhub.io/api/v1/stock/profile2?symbol='+sym+'&token='+FINNHUB_KEY).then(function(x){return x.json();}).catch(function(){return {};}),
-        fetch('https://finnhub.io/api/v1/stock/metric?symbol='+sym+'&metric=all&token='+FINNHUB_KEY).then(function(x){return x.json();}).catch(function(){return {};})
+        fetch('https://finnhub.io/api/v1/stock/metric?symbol='+sym+'&metric=all&token='+FINNHUB_KEY).then(function(x){return x.json();}).catch(function(){return {};}),
+        fetch('https://finnhub.io/api/v1/calendar/earnings?symbol='+sym+'&from='+heute+'&to='+bis+'&token='+FINNHUB_KEY).then(function(x){return x.json();}).catch(function(){return {};})
       ]);
-      aktieInfoCache[sym]={p:r[0]||{}, m:(r[1]&&r[1].metric)||{}};
+      aktieInfoCache[sym]={p:r[0]||{}, m:(r[1]&&r[1].metric)||{}, e:((r[2]&&r[2].earningsCalendar)||[])};
     }
     if(aktieInfoAktiv!==sym)return; // Nutzer hat inzwischen geschlossen/andere gewählt
     var p=aktieInfoCache[sym].p, m=aktieInfoCache[sym].m;
+    var earn=(aktieInfoCache[sym].e||[]).filter(function(x){return x.date&&x.date>=heute;}).sort(function(a,b){return a.date<b.date?-1:1;})[0];
+    var earnTxt=earn?(new Date(earn.date).toLocaleDateString('de-DE')+(typeof earn.epsEstimate==='number'?' (EPS-Schätzung '+earn.epsEstimate.toFixed(2)+' $)':'')):null;
     var d=aktienDaten[sym]||{};
     var chg=(d.previousClose)?((d.price-d.previousClose)/d.previousClose*100):null;
     var num=function(v,dez){return (typeof v==='number'&&isFinite(v))?v.toLocaleString('de-DE',{maximumFractionDigits:dez==null?2:dez}):null;};
@@ -1072,6 +1094,7 @@ async function aktieInfoOeffnen(sym){
       +aktieZeile('KGV (P/E, TTM)', kgv)
       +aktieZeile('Dividendenrendite', divRend!=null?divRend+' %':null)
       +aktieZeile('Beta', num(m.beta,2))
+      +aktieZeile('Nächste Quartalszahlen', earnTxt)
       +(p.weburl?'<div style="margin-top:8px"><a href="'+p.weburl+'" target="_blank" rel="noopener" style="color:#2962ff;font-weight:bold">'+p.weburl.replace(/^https?:\/\//,'').replace(/\/$/,'')+' ↗</a></div>':'')
       +'<div class="signal-hinweis" style="margin-top:8px">Angaben ohne Gewähr · Quelle: Finnhub · keine Anlageberatung.</div>'
       +'</div>';
@@ -1372,6 +1395,70 @@ function aktienAlarmePruefen(){
   if(neu){try{demoBeep();}catch(e){}}
   aktienAlarmListeZeigen();
 }
+// --- Kurs-Alarm Krypto (Preise in €) ---
+function kryptoAlarmeLaden(){try{return JSON.parse(localStorage.getItem('mb_krypto_alarme'))||[];}catch(e){return [];}}
+function kryptoAlarmeSpeichern(a){localStorage.setItem('mb_krypto_alarme',JSON.stringify(a));}
+function kryptoAlarmDropdown(){
+  var sel=document.getElementById('krypto-alarm-id'); if(!sel)return;
+  var v=sel.value;
+  sel.innerHTML=(aktuelleCoins||[]).map(function(c){return '<option value="'+c.id+'">'+c.name+' ('+c.symbol.toUpperCase()+')</option>';}).join('');
+  if(v&&(aktuelleCoins||[]).some(function(c){return c.id===v;}))sel.value=v;
+}
+function kryptoAlarmListeZeigen(){
+  var el=document.getElementById('krypto-alarm-liste'); if(!el)return;
+  var al=kryptoAlarmeLaden();
+  if(!al.length){el.innerHTML='<span style="color:#888">Kein Alarm gesetzt.</span>';return;}
+  el.innerHTML=al.map(function(a){
+    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:3px 0">'
+      +'<span>'+(a.aktiv?'⏳ ':'✅ ')+a.name+' '+(a.richtung==='ueber'?'über':'unter')+' '+eur(a.preis)+(a.aktiv?'':' – ausgelöst')+'</span>'
+      +'<button class="grau" style="padding:3px 9px" onclick="kryptoAlarmEntfernen(\''+a.id+'\')">✕</button></div>';
+  }).join('');
+}
+function kryptoAlarmHinzufuegen(){
+  var id=document.getElementById('krypto-alarm-id').value;
+  var richtung=document.getElementById('krypto-alarm-richtung').value;
+  var preis=parseFloat(document.getElementById('krypto-alarm-preis').value);
+  if(!id||!preis||preis<=0)return;
+  var c=(aktuelleCoins||[]).find(function(x){return x.id===id;});
+  var al=kryptoAlarmeLaden();
+  al.push({id:'ka'+Date.now()+Math.floor(Math.random()*1000),coinId:id,name:c?c.name:id,richtung:richtung,preis:preis,aktiv:true});
+  kryptoAlarmeSpeichern(al);
+  document.getElementById('krypto-alarm-preis').value='';
+  try{demoBeep();}catch(e){}
+  kryptoAlarmListeZeigen();
+  kryptoAlarmePruefen();
+}
+function kryptoAlarmEntfernen(aid){
+  kryptoAlarmeSpeichern(kryptoAlarmeLaden().filter(function(a){return a.id!==aid;}));
+  kryptoAlarmListeZeigen();
+  if(!kryptoAlarmeLaden().some(function(a){return !a.aktiv;})){var b=document.getElementById('krypto-alarm-banner');if(b)b.style.display='none';}
+}
+var kryptoAlarmGepiept={};
+function kryptoAlarmePruefen(){
+  var al=kryptoAlarmeLaden();
+  if(!al.length)return;
+  var geaendert=false,neu=false;
+  al.forEach(function(a){
+    if(!a.aktiv)return;
+    var c=(aktuelleCoins||[]).find(function(x){return x.id===a.coinId;});
+    if(!c||typeof c.current_price!=='number'||c.current_price<=0)return;
+    var hit=(a.richtung==='ueber')?(c.current_price>=a.preis):(c.current_price<=a.preis);
+    if(hit){a.aktiv=false;a.ausPreis=c.current_price;geaendert=true;if(!kryptoAlarmGepiept[a.id]){kryptoAlarmGepiept[a.id]=1;neu=true;}}
+  });
+  if(!geaendert)return;
+  kryptoAlarmeSpeichern(al);
+  var aus=al.filter(function(a){return !a.aktiv;});
+  var b=document.getElementById('krypto-alarm-banner');
+  if(b&&aus.length){
+    b.style.display='block';
+    b.innerHTML=alarmBannerHtml('Kurs-Alarm Krypto',aus.map(function(a){
+      return a.name+' '+(a.richtung==='ueber'?'über':'unter')+' '+eur(a.preis)+' erreicht (jetzt '+eur(a.ausPreis)+')';
+    }));
+  }
+  if(neu){try{demoBeep();}catch(e){}}
+  kryptoAlarmListeZeigen();
+}
+kryptoAlarmListeZeigen();
 // --- Rohstoffe ---
 function rohstoffAlarmeLaden(){try{return JSON.parse(localStorage.getItem('mb_rohstoff_alarme'))||[];}catch(e){return [];}}
 function rohstoffAlarmeSpeichern(a){localStorage.setItem('mb_rohstoff_alarme',JSON.stringify(a));}
@@ -1477,11 +1564,30 @@ document.addEventListener('keydown',function(e){
   if(e.key==='Escape'&&document.getElementById('chart-panel').classList.contains('voll'))chartVollbild();
 });
 
+function coinInfoZeile(symbol){
+  var el=document.getElementById('coin-info-zeile'); if(!el)return;
+  var c=(aktuelleCoins||[]).find(function(x){return x.symbol.toUpperCase()===symbol.toUpperCase();});
+  if(!c){el.innerHTML='';return;}
+  var kurz=function(v){
+    if(typeof v!=='number'||!isFinite(v))return '–';
+    if(v>=1e9)return (v/1e9).toLocaleString('de-DE',{maximumFractionDigits:1})+' Mrd.';
+    if(v>=1e6)return (v/1e6).toLocaleString('de-DE',{maximumFractionDigits:1})+' Mio.';
+    return v.toLocaleString('de-DE',{maximumFractionDigits:0});
+  };
+  var pr=function(v){return (typeof v==='number'&&isFinite(v))?v.toLocaleString('de-DE',{maximumFractionDigits:v<1?6:2})+' €':'–';};
+  el.innerHTML='Rang #'+(c.market_cap_rank||'?')
+    +' · Allzeithoch '+pr(c.ath)+(typeof c.ath_change_percentage==='number'?' ('+c.ath_change_percentage.toFixed(0)+' %)':'')
+    +' · Allzeittief '+pr(c.atl)
+    +' · 24h-Volumen '+kurz(c.total_volume)+' €'
+    +' · Umlauf '+kurz(c.circulating_supply)+' '+symbol.toUpperCase()
+    +(c.max_supply?' / max '+kurz(c.max_supply):'');
+}
 function chartOeffnen(symbol){
   chartAktivesSymbol=symbol;
   var panel=document.getElementById('chart-panel');
   panel.style.display='block';
   document.getElementById('chart-titel').textContent=symbol+' / USD';
+  coinInfoZeile(symbol);
   var hinweisEl=document.getElementById('chart-hinweis');
   if(typeof LightweightCharts==='undefined'){
     hinweisEl.textContent='⚠️ Chart-Bibliothek nicht geladen (kein Internet?).';
@@ -2522,7 +2628,8 @@ function demoStatistikZeigen(depot){
     +zeile('Ø Verlust je Verlust-Trade',losses.length?g(sumLoss/losses.length):'–')
     +zeile('Bester Trade',g(best.gv)+' <span style="color:#ddd">('+best.name+', '+new Date(best.zeit).toLocaleDateString('de-DE')+')</span>')
     +zeile('Schlechtester Trade',g(worst.gv)+' <span style="color:#ddd">('+worst.name+', '+new Date(worst.zeit).toLocaleDateString('de-DE')+')</span>')
-    +zeile('Summe aller abgeschlossenen Trades',g(sumWin+sumLoss));
+    +zeile('Summe aller abgeschlossenen Trades',g(sumWin+sumLoss))
+    +zeile('Σ Gebühren insgesamt gezahlt',eur((depot.verlauf||[]).reduce(function(a,t){return a+((typeof t.gebuehr==='number')?t.gebuehr:0);},0)));
 }
 function demoUebersichtZeigen(depot){
   var el=document.getElementById('demo-uebersicht');
@@ -3479,6 +3586,19 @@ function demoZuruecksetzen(){
   document.getElementById('demo-status').textContent='✅ Zurückgesetzt – 10.000 € Spielgeld (Einstellungen bleiben).';
 }
 
+function demoDepotDatei(){
+  var info=document.getElementById('demo-transfer-info');
+  try{
+    var code='MB1:'+btoa(unescape(encodeURIComponent(JSON.stringify(demoLaden()))));
+    var blob=new Blob([code],{type:'text/plain'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url; a.download='marktblick-depot-'+new Date().toISOString().slice(0,10)+'.txt';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){URL.revokeObjectURL(url);},1500);
+    if(info)info.textContent='💾 Datei gespeichert (im Downloads-Ordner). Gut aufheben – damit kannst du dein Depot jederzeit wiederherstellen.';
+  }catch(e){ if(info)info.textContent='⚠️ Speichern als Datei nicht möglich – nimm „Exportieren + kopieren".'; }
+}
 function demoExportieren(){
   var el=document.getElementById('demo-transfer');
   var info=document.getElementById('demo-transfer-info');
