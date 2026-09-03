@@ -116,7 +116,7 @@ h1{margin:0;font-size:22px}
 <body>
 <header>
 <h1>📊 Marktblick</h1>
-<div class="sub">Kurse in Echtzeit · Stand 04.09.2026 (Auto-Sync sparsamer)</div>
+<div class="sub">Kurse in Echtzeit · Stand 04.09.2026 (Auto-Sync: kein Reload-Sturm)</div>
 </header>
 <div class="tabs">
 <button class="tab-btn active" id="tab-krypto" onclick="wechsleTab('krypto')">🪙 Krypto</button>
@@ -4202,11 +4202,20 @@ function syncLaden(){
 function syncSpeichern(){
   localStorage.setItem('mb_sync',JSON.stringify({token:syncState.token,gistId:syncState.gistId,aktiv:syncState.aktiv,zuletzt:syncState.zuletzt,geraet:syncState.geraet}));
 }
-function syncNorm(raw){ if(raw==null)return null; try{ return JSON.stringify(JSON.parse(raw)); }catch(e){ return raw; } }
+// Flüchtige, rein kosmetische Felder aus dem Vergleich nehmen, damit der 60-Sek-
+// Chartpunkt (mb_demo.equity) keinen Sync/Reload auslöst.
+function syncBereinigen(k,o){
+  if(k==='mb_demo' && o && typeof o==='object'){ var c={}; for(var p in o){ if(p!=='equity')c[p]=o[p]; } return c; }
+  return o;
+}
+function syncNorm(k,raw){
+  if(raw==null)return null;
+  try{ return JSON.stringify(syncBereinigen(k,JSON.parse(raw))); }catch(e){ return raw; }
+}
 function syncSnapshot(obj){
   return JSON.stringify(SYNC_KEYS.map(function(k){
-    if(obj) return [k, (obj[k]===undefined||obj[k]===null)?null:JSON.stringify(obj[k])];
-    return [k, syncNorm(localStorage.getItem(k))];
+    if(obj) return [k, (obj[k]===undefined||obj[k]===null)?null:JSON.stringify(syncBereinigen(k,obj[k]))];
+    return [k, syncNorm(k, localStorage.getItem(k))];
   }));
 }
 function syncDaten(){
@@ -4303,9 +4312,9 @@ async function syncTick(erzwingen){
     if(remote && typeof remote.zuletzt==='number' && remote.zuletzt>syncState.zuletzt){
       var rsnap=syncSnapshot(remote.daten||{});
       if(rsnap!==snap){
-        if(Date.now()-syncState.localDirtyAt>20000){
+        if(Date.now()-syncState.localDirtyAt>20000 && Date.now()-(syncState.letzterReload||0)>60000){
           syncRemoteAnwenden(remote);
-          syncState.zuletzt=remote.zuletzt; syncSpeichern();
+          syncState.zuletzt=remote.zuletzt; syncState.letzterReload=Date.now(); syncSpeichern();
           location.reload(); return;
         }
         syncBanner(remote); return;
@@ -4326,6 +4335,7 @@ async function syncTick(erzwingen){
 }
 function syncNachAenderung(){
   if(!syncState.aktiv||!syncState.token)return;
+  if(syncSnapshot()===syncState.pushedSnapshot)return; // nur Chartpunkt o. Ä. – nichts Relevantes
   syncState.localDirtyAt=Date.now();
   clearTimeout(syncPushTimer);
   syncPushTimer=setTimeout(function(){ syncTick(true); },5000); // eigene Änderung immer hochladen
@@ -4393,6 +4403,7 @@ function syncJetzt(){
   var inp=document.getElementById('sync-token'); if(inp&&syncState.token)inp.value=syncState.token;
   var an=document.getElementById('sync-an'); if(an)an.checked=syncState.aktiv;
   syncState.lastSeenSnapshot=syncSnapshot();
+  syncState.pushedSnapshot=syncState.lastSeenSnapshot; // beim Laden nicht sofort einen neuen Zeitstempel hochschieben
   syncStatusAuffrischen();
   if(syncState.aktiv&&syncState.token){ syncIntervallStarten(); setTimeout(function(){ syncTick(true); },1500); }
   document.addEventListener('visibilitychange',function(){
