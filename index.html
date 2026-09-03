@@ -116,7 +116,7 @@ h1{margin:0;font-size:22px}
 <body>
 <header>
 <h1>📊 Marktblick</h1>
-<div class="sub">Kurse in Echtzeit · Stand 03.09.2026 (Sparplan-Details)</div>
+<div class="sub">Kurse in Echtzeit · Stand 03.09.2026 (Sparplan realistisch)</div>
 </header>
 <div class="tabs">
 <button class="tab-btn active" id="tab-krypto" onclick="wechsleTab('krypto')">🪙 Krypto</button>
@@ -544,6 +544,9 @@ Vorlagen: <a href="#" onclick="demoPreset(2,1);return false" style="color:#2962f
 <span>Betrag pro Rate</span><input type="number" id="spl-betrag" value="30" min="3" step="1" style="width:70px"><span>€ · alle 2 Wochen</span>
 </div>
 <div class="rechner-zeile">
+<span>Ausführungsgebühr je Rate</span><input type="number" id="spl-gebuehr" value="0" min="0" step="0.5" style="width:70px"><span>€ (0 = Neobroker, kostenlos)</span>
+</div>
+<div class="rechner-zeile">
 <button onclick="sparplanStart()">▶️ Sparplan starten</button>
 <button class="grau" onclick="sparplanStop()">⏹️ Stopp</button>
 </div>
@@ -553,7 +556,7 @@ Vorlagen: <a href="#" onclick="demoPreset(2,1);return false" style="color:#2962f
 </div>
 <div id="spl-status" style="font-size:13px;color:#ccc;line-height:1.7;margin-top:6px"></div>
 <div id="spl-chart" style="height:170px;margin-top:6px"></div>
-<div class="signal-hinweis">Spielgeld-Übung: alle 2 Wochen wird der Betrag zu gleichen Teilen in die 3 Aktien gesteckt (Bruchteile, gebührenfrei). Nach je 26 Raten (≈ 1 Jahr) wird die Jahres-Dividende gutgeschrieben und sofort wieder angelegt. „Nächste Rate jetzt" spult vor, damit du das Wachstum beobachten kannst. Kein Zusammenhang mit dem normalen Demo-Depot – eigener Speicher.</div>
+<div class="signal-hinweis">Spielgeld-Übung: alle 2 Wochen wird der Betrag (minus Ausführungsgebühr) zu gleichen Teilen in die 3 Aktien gesteckt – Bruchteile, plus ein kleiner Kauf-Aufschlag von 0,15 % (Spread). Nach je 26 Raten (≈ 1 Jahr) wird die Jahres-Dividende gutgeschrieben; darauf 26,375 % Steuer, aber 1.000 € pro Jahr steuerfrei (Sparerpauschbetrag). Der Rest wird sofort wieder angelegt. „Nächste Rate jetzt" spult vor, damit du das Wachstum beobachten kannst. Eigener Speicher, kein Zusammenhang mit dem normalen Demo-Depot.</div>
 </div>
 </div>
 <div class="rechner" style="max-width:640px">
@@ -3720,6 +3723,9 @@ var SPL_POOL=[
 ];
 var SPL_INTERVALL=14*24*3600*1000; // 2 Wochen
 var SPL_DIV_ALLE=26;               // Dividende nach je 26 Raten (~1 Jahr)
+var SPL_SPREAD=0.15;               // % Kauf-Aufschlag (Spread) auf jeden Kaufbetrag
+var SPL_STEUER=26.375;             // % Abgeltungsteuer + Soli auf Dividenden
+var SPL_FREIBETRAG=1000;           // € Sparerpauschbetrag pro Jahr steuerfrei
 var splChart=null, splSerie=null, splPruefLaeuft=false;
 
 function sparplanLaden(){
@@ -3727,10 +3733,13 @@ function sparplanLaden(){
   if(!d||typeof d!=='object')d={};
   if(!Array.isArray(d.symbole)||d.symbole.length!==3)d.symbole=['KO','JNJ','PG'];
   if(typeof d.ratePro!=='number')d.ratePro=30;
+  if(typeof d.gebuehrRate!=='number')d.gebuehrRate=0;
   if(typeof d.aktiv!=='boolean')d.aktiv=false;
   if(typeof d.ratenGesamt!=='number')d.ratenGesamt=0;
   if(typeof d.eingezahlt!=='number')d.eingezahlt=0;
   if(typeof d.dividendenGesamt!=='number')d.dividendenGesamt=0;
+  if(typeof d.kostenGesamt!=='number')d.kostenGesamt=0;
+  if(typeof d.steuerGesamt!=='number')d.steuerGesamt=0;
   if(!d.positionen||typeof d.positionen!=='object')d.positionen={};
   if(!d.divProShare||typeof d.divProShare!=='object')d.divProShare={};
   if(!Array.isArray(d.verlauf))d.verlauf=[];
@@ -3754,6 +3763,8 @@ function sparplanDropdowns(){
   });
   var b=document.getElementById('spl-betrag');
   if(b){ b.value=d.ratePro; b.disabled=d.aktiv; }
+  var g=document.getElementById('spl-gebuehr');
+  if(g){ g.value=d.gebuehrRate; g.disabled=d.aktiv; }
 }
 
 async function sparplanPreisEUR(sym){
@@ -3794,29 +3805,39 @@ async function sparplanWert(d){
 }
 async function sparplanRateAusfuehren(){
   var d=sparplanLaden();
-  var proAktie=d.ratePro/3;
+  var geb=d.gebuehrRate||0;
+  var investierbar=d.ratePro-geb;
+  if(investierbar<=0) return 'gebuehr';
+  d.kostenGesamt=(d.kostenGesamt||0)+geb;
+  var proAktie=investierbar/3;
   for(var i=0;i<3;i++){
     var s=d.symbole[i], preis=await sparplanPreisEUR(s);
     if(!preis) return 'kurs';
     if(!d.positionen[s])d.positionen[s]={menge:0,kosten:0};
-    d.positionen[s].menge+=proAktie/preis;
-    d.positionen[s].kosten+=proAktie;
+    var aufschlag=proAktie*SPL_SPREAD/100;
+    d.kostenGesamt+=aufschlag;
+    d.positionen[s].menge+=(proAktie-aufschlag)/preis;
+    d.positionen[s].kosten+=d.ratePro/3; // was von der Rate auf diese Aktie entfällt (inkl. anteiliger Gebühr)
   }
   d.eingezahlt+=d.ratePro;
   d.ratenGesamt+=1;
   d.letzteRate=Date.now();
   if(d.ratenGesamt%SPL_DIV_ALLE===0){
-    var divSumme=0;
+    var divBrutto=0;
     for(var j=0;j<3;j++){
       var sy=d.symbole[j], dps=await sparplanDivProShareEUR(sy,d.divProShare);
       d.divProShare[sy]=dps;
-      divSumme+=(d.positionen[sy]?d.positionen[sy].menge:0)*dps;
+      divBrutto+=(d.positionen[sy]?d.positionen[sy].menge:0)*dps;
     }
-    if(divSumme>0){
-      d.dividendenGesamt+=divSumme;
+    if(divBrutto>0){
+      var steuerpflichtig=Math.max(0,divBrutto-SPL_FREIBETRAG); // 1.000 €/Jahr Sparerpauschbetrag frei
+      var steuer=steuerpflichtig*SPL_STEUER/100;
+      var divNetto=divBrutto-steuer;
+      d.dividendenGesamt+=divBrutto;
+      d.steuerGesamt=(d.steuerGesamt||0)+steuer;
       for(var k=0;k<3;k++){
         var sk=d.symbole[k], pk=await sparplanPreisEUR(sk);
-        if(pk&&d.positionen[sk]) d.positionen[sk].menge+=(divSumme/3)/pk; // Dividende reinvestiert – kein neues Eigengeld
+        if(pk&&d.positionen[sk]) d.positionen[sk].menge+=(divNetto/3)/pk; // Netto-Dividende reinvestiert – kein neues Eigengeld
       }
     }
   }
@@ -3837,6 +3858,9 @@ async function sparplanStart(){
   if(Object.keys(uniq).length!==3){ if(st)st.textContent='⚠️ Bitte 3 verschiedene Aktien wählen.'; return; }
   var betrag=parseFloat(document.getElementById('spl-betrag').value);
   d.ratePro=(!betrag||betrag<3)?30:betrag;
+  var gb=parseFloat(document.getElementById('spl-gebuehr').value);
+  d.gebuehrRate=(isNaN(gb)||gb<0)?0:gb;
+  if(d.gebuehrRate>=d.ratePro){ if(st)st.textContent='⚠️ Die Gebühr darf nicht so groß wie die Rate sein.'; return; }
   d.aktiv=true;
   if(!d.gestartet)d.gestartet=Date.now();
   d.letzteRate=Date.now()-SPL_INTERVALL;
@@ -3859,6 +3883,7 @@ async function sparplanRateJetzt(){
     // noch nie gestartet: Symbole/Betrag übernehmen, damit "Rate jetzt" auch ohne Start geht
     d.symbole=[document.getElementById('spl-a1').value,document.getElementById('spl-a2').value,document.getElementById('spl-a3').value];
     var b=parseFloat(document.getElementById('spl-betrag').value); d.ratePro=(!b||b<3)?30:b;
+    var gb=parseFloat(document.getElementById('spl-gebuehr').value); d.gebuehrRate=(isNaN(gb)||gb<0)?0:gb;
     var uniq={}; d.symbole.forEach(function(s){uniq[s]=1;});
     if(Object.keys(uniq).length!==3){ if(st)st.textContent='⚠️ Bitte 3 verschiedene Aktien wählen.'; return; }
     if(!d.gestartet)d.gestartet=Date.now();
@@ -3866,6 +3891,7 @@ async function sparplanRateJetzt(){
   }
   var r=await sparplanRateAusfuehren();
   if(r==='kurs'){ if(st)st.textContent='⚠️ Kurs gerade nicht abrufbar – kurz warten und nochmal.'; return; }
+  if(r==='gebuehr'){ if(st)st.textContent='⚠️ Die Gebühr ist so groß wie die Rate – nichts investierbar.'; return; }
   sparplanAnzeigen();
 }
 function sparplanZuruecksetzen(){
@@ -3923,10 +3949,13 @@ async function sparplanAnzeigen(){
     var tage=Math.max(0,Math.ceil((d.letzteRate+SPL_INTERVALL-Date.now())/86400000));
     naechste='<div style="color:#888">Nächste Rate in '+tage+' Tag(en) – oder „⏩ Nächste Rate jetzt".</div>';
   }
+  var divNettoGes=(d.dividendenGesamt||0)-(d.steuerGesamt||0);
   st.innerHTML=zeilen
     +'<div style="border-top:1px solid #333;margin-top:6px;padding-top:6px">Raten: <b>'+d.ratenGesamt+'</b> · Eingezahlt: <b>'+eur(d.eingezahlt)+'</b></div>'
     +'<div>Aktueller Wert: <b>'+eur(wert)+'</b> <span style="color:'+farbe+';font-weight:bold">('+(gv>=0?'+':'')+eur(gv)+')</span></div>'
-    +'<div>Erhaltene Dividenden gesamt: <b>'+eur(d.dividendenGesamt)+'</b> (wieder angelegt)</div>'
+    +'<div>Dividenden erhalten: <b>'+eur(d.dividendenGesamt||0)+'</b>'
+      +((d.steuerGesamt>0)?' · Steuer −'+eur(d.steuerGesamt)+' · angelegt '+eur(divNettoGes):' (wieder angelegt)')+'</div>'
+    +'<div style="color:#888">Σ Gebühren + Kauf-Aufschlag: '+eur(d.kostenGesamt||0)+'</div>'
     +naechste;
   sparplanChartNeu(d);
 }
