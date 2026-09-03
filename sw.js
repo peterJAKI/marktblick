@@ -2,7 +2,7 @@
    App-Hülle (HTML/Icon/Manifest) wird gecacht, damit die App auch offline startet.
    HTML wird "Netz zuerst" geladen, damit Updates sofort ankommen.
    Kursdaten kommen immer live aus dem Internet und werden NIE gecacht. */
-var CACHE = 'marktblick-v8';
+var CACHE = 'marktblick-v9';
 var HUELLE = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', function (e) {

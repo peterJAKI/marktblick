@@ -116,7 +116,7 @@ h1{margin:0;font-size:22px}
 <body>
 <header>
 <h1>📊 Marktblick</h1>
-<div class="sub">Kurse in Echtzeit · Stand 03.09.2026 (mehr Funktionen)</div>
+<div class="sub">Kurse in Echtzeit · Stand 03.09.2026 (Aktie: Heute-Zeile)</div>
 </header>
 <div class="tabs">
 <button class="tab-btn active" id="tab-krypto" onclick="wechsleTab('krypto')">🪙 Krypto</button>
@@ -1074,6 +1074,10 @@ async function aktieInfoOeffnen(sym){
     var earnTxt=earn?(new Date(earn.date).toLocaleDateString('de-DE')+(typeof earn.epsEstimate==='number'?' (EPS-Schätzung '+earn.epsEstimate.toFixed(2)+' $)':'')):null;
     var d=aktienDaten[sym]||{};
     var chg=(d.previousClose)?((d.price-d.previousClose)/d.previousClose*100):null;
+    var diff=(typeof d.price==='number'&&typeof d.previousClose==='number')?(d.price-d.previousClose):null;
+    var heuteTxt=(diff!=null&&chg!=null)
+      ? '<span style="color:'+(diff>=0?'#4caf50':'#f44336')+'">'+(diff>=0?'+':'−')+Math.abs(diff).toLocaleString('de-DE',{maximumFractionDigits:2})+' $ ('+(diff>=0?'+':'−')+Math.abs(chg).toFixed(2)+' %)</span>'
+      : null;
     var num=function(v,dez){return (typeof v==='number'&&isFinite(v))?v.toLocaleString('de-DE',{maximumFractionDigits:dez==null?2:dez}):null;};
     var kgv=num(m.peTTM!=null?m.peTTM:m.peBasicExclExtraTTM,1);
     var divRend=num(m.currentDividendYieldTTM!=null?m.currentDividendYieldTTM:m.dividendYieldIndicatedAnnual,2);
@@ -1087,7 +1091,8 @@ async function aktieInfoOeffnen(sym){
       +aktieZeile('Land', p.country)
       +aktieZeile('Börsengang', p.ipo)
       +aktieZeile('Marktkapitalisierung', aktieMarktkap(p.marketCapitalization))
-      +aktieZeile('Kurs jetzt', num(d.price)!=null?num(d.price)+' $'+(chg!=null?' ('+(chg>=0?'+':'')+chg.toFixed(2)+' %)':''):null)
+      +aktieZeile('Kurs jetzt', num(d.price)!=null?num(d.price)+' $':null)
+      +aktieZeile('Heute', heuteTxt)
       +aktieZeile('Tages­spanne', (num(d.low)!=null&&num(d.high)!=null)?num(d.low)+' – '+num(d.high)+' $':null)
       +aktieZeile('Vortagesschluss', num(d.previousClose)!=null?num(d.previousClose)+' $':null)
       +aktieZeile('52-Wochen-Spanne', (l52&&h52)?l52+' – '+h52+' $':null)
