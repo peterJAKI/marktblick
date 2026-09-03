@@ -116,7 +116,7 @@ h1{margin:0;font-size:22px}
 <body>
 <header>
 <h1>📊 Marktblick</h1>
-<div class="sub">Kurse in Echtzeit · Stand 04.09.2026 (Auto-Sync: kein Reload-Sturm)</div>
+<div class="sub">Kurse in Echtzeit · Stand 04.09.2026 (Aktien laden zuverlässig)</div>
 </header>
 <div class="tabs">
 <button class="tab-btn active" id="tab-krypto" onclick="wechsleTab('krypto')">🪙 Krypto</button>
@@ -1061,27 +1061,36 @@ function aktualisiereAktienZeile(symbol){
   aktienAlarmePruefen();
 }
 
+var ladeAktienLaeuft=false;
 async function ladeAktien(){
-  document.getElementById('aktien-status').innerText='⏳ Lade Aktienkurse...';
+  if(ladeAktienLaeuft)return;
+  ladeAktienLaeuft=true;
+  var st=document.getElementById('aktien-status');
+  var schonWelche=Object.keys(aktienDaten).length>0;
+  if(st)st.innerText=schonWelche?'⏳ Aktualisiere Aktienkurse…':'⏳ Lade Aktienkurse...';
   try{
     var eigene=getEigeneAktien();
     var alleAktien=aktienListe.concat(eigene);
-    var html='';
+    var html='', ok=0;
     for(var i=0;i<alleAktien.length;i++){
-      var aktie=alleAktien[i];
-      var res=await fetch('https://finnhub.io/api/v1/quote?symbol='+aktie.symbol+'&token='+FINNHUB_KEY);
-      var d=await res.json();
-      aktienDaten[aktie.symbol]={price:d.c,previousClose:d.pc,high:d.h,low:d.l};
-      var change=d.pc?((d.c-d.pc)/d.pc*100):null;
+      var aktie=alleAktien[i], d=null;
+      try{
+        var res=await fetch('https://finnhub.io/api/v1/quote?symbol='+aktie.symbol+'&token='+FINNHUB_KEY);
+        if(res.ok){ var j=await res.json(); if(j&&typeof j.c==='number'&&j.c>0)d=j; }
+      }catch(e){}
+      if(d){ aktienDaten[aktie.symbol]={price:d.c,previousClose:d.pc,high:d.h,low:d.l}; ok++; }
+      var cur=aktienDaten[aktie.symbol]; // ggf. Wert aus einem früheren Lauf
+      var kurs=cur?cur.price:null, pc=cur?cur.previousClose:null;
+      var change=(kurs&&pc)?((kurs-pc)/pc*100):null;
       var a=formatiereAenderung(change);
       var istEigen=eigene.some(function(x){return x.symbol===aktie.symbol;});
       html+='<div class="coin" id="arow-'+aktie.symbol+'" style="cursor:pointer" onclick="aktieInfoOeffnen(\''+aktie.symbol+'\')">'
         +'<div class="coin-info"><div class="coin-name">'+aktie.name+'</div><div class="coin-symbol">'+aktie.symbol+'</div></div>'
-        +'<div class="coin-price"><div class="price" id="apreis-'+aktie.symbol+'">'+formatierePreis(d.c)+' $</div><div class="change '+a.klasse+'" id="achange-'+aktie.symbol+'">'+a.text+'</div></div>'
+        +'<div class="coin-price"><div class="price" id="apreis-'+aktie.symbol+'">'+(kurs?formatierePreis(kurs)+' $':'–')+'</div><div class="change '+a.klasse+'" id="achange-'+aktie.symbol+'">'+a.text+'</div></div>'
         +(istEigen?'<button class="entfernen-btn" onclick="event.stopPropagation();aktieEntfernen(\''+aktie.symbol+'\')" title="Entfernen">✕</button>':'')
         +'</div>';
     }
-    document.getElementById('aktien-liste').innerHTML=html;
+    if(ok>0||!schonWelche)document.getElementById('aktien-liste').innerHTML=html;
     aktuelleAktien=alleAktien;
     fuelleAktienDropdown();
     aktienAlarmDropdown();
@@ -1089,10 +1098,12 @@ async function ladeAktien(){
     aktieBerechne();
     aktieBerechne2();
     var jetzt=new Date().toLocaleTimeString('de-DE');
-    document.getElementById('aktien-status').innerText='✅ Zuletzt aktualisiert: '+jetzt;
+    if(st)st.innerText=(ok>0)?('✅ Zuletzt aktualisiert: '+jetzt+(ok<alleAktien.length?(' ('+ok+'/'+alleAktien.length+')'):'')):'⚠️ Aktienkurse gerade nicht erreichbar – nächster Versuch in 90 Sek.';
     starteAktienTicker(alleAktien);
   }catch(e){
-    document.getElementById('aktien-status').innerText='⚠️ Aktienkurse konnten nicht geladen werden.';
+    if(st)st.innerText='⚠️ Aktienkurse konnten nicht geladen werden – nächster Versuch in 90 Sek.';
+  }finally{
+    ladeAktienLaeuft=false;
   }
 }
 
@@ -1269,6 +1280,7 @@ async function ladeKryptoNews(){
 }
 
 ladeAktien();
+setInterval(ladeAktien,90000);   // regelmäßig auffrischen + selbstheilend, falls der erste Lauf gestört war
 ladeNews();
 setInterval(ladeNews,300000);
 
@@ -4282,19 +4294,49 @@ async function syncGistSchreiben(payload){
   var g=await r.json();
   if(!syncState.gistId&&g&&g.id){ syncState.gistId=g.id; syncSpeichern(); }
 }
+var syncAnwendenLaeuft=false;
 function syncRemoteAnwenden(payload){
   var d=(payload&&payload.daten)||{};
   SYNC_KEYS.forEach(function(k){ if(d[k]!==undefined&&d[k]!==null) localStorage.setItem(k,JSON.stringify(d[k])); });
 }
+// Fremden Stand OHNE Seiten-Neuladen übernehmen: localStorage schreiben, Bot-Timer
+// neu setzen, Oberflächen aktualisieren – so wird der Aktien-Ladevorgang nie unterbrochen.
+function syncUebernehmen(payload){
+  syncAnwendenLaeuft=true;
+  try{
+    syncRemoteAnwenden(payload);
+    try{
+      Object.keys(demoBotTimers).forEach(function(k){clearInterval(demoBotTimers[k]);delete demoBotTimers[k];});
+      Object.keys(demoBotMaxTimers).forEach(function(k){clearTimeout(demoBotMaxTimers[k]);delete demoBotMaxTimers[k];});
+      var dd=demoLaden(); demoSpeichern(dd);
+      (dd.bots||[]).forEach(function(b){ demoBotTimerSetzen(b.id,b.pruefMin||5); demoBotMaxTimerSetzen(b); });
+      demoTradeFlag=true;
+      if(typeof demoFormulareAufbauen==='function')demoFormulareAufbauen();
+      if(typeof demoWerteAktualisieren==='function')demoWerteAktualisieren();
+    }catch(e){}
+    try{ sparplanDropdowns(); sparplanChartZustand(); sparplanAnzeigen(); }catch(e){}
+    try{ if(typeof aktienAlarmDropdown==='function')aktienAlarmDropdown(); }catch(e){}
+    try{ if(typeof kryptoAlarmDropdown==='function')kryptoAlarmDropdown(); }catch(e){}
+    try{ if(typeof rohstoffAlarmDropdown==='function')rohstoffAlarmDropdown(); }catch(e){}
+    try{ if(typeof zeigeEigeneCoins==='function')zeigeEigeneCoins(); }catch(e){}
+  }finally{
+    syncState.zuletzt=(payload&&payload.zuletzt)||Date.now();
+    syncState.lastSeenSnapshot=syncSnapshot();
+    syncState.pushedSnapshot=syncState.lastSeenSnapshot;
+    syncState.localDirtyAt=0;
+    syncSpeichern();
+    syncAnwendenLaeuft=false;
+  }
+}
 function syncBanner(payload){
   window.__syncWartend=payload;
-  syncStatus('🔵 Neuer Stand vom anderen Gerät ('+(payload.geraet||'?')+') – <a href="#" onclick="syncBannerLaden();return false;">jetzt laden</a>');
+  syncStatus('🔵 Neuer Stand vom anderen Gerät ('+(payload.geraet||'?')+') – <a href="#" onclick="syncBannerLaden();return false;">jetzt übernehmen</a>');
 }
 function syncBannerLaden(){
   var p=window.__syncWartend; if(!p)return;
-  syncRemoteAnwenden(p);
-  syncState.zuletzt=p.zuletzt||Date.now(); syncSpeichern();
-  location.reload();
+  window.__syncWartend=null;
+  syncUebernehmen(p);
+  syncStatus('🟢 Übernommen · Auto-Sync an');
 }
 async function syncTick(erzwingen){
   if(syncLaeuft||!syncState.token||!syncState.aktiv)return;
@@ -4312,10 +4354,10 @@ async function syncTick(erzwingen){
     if(remote && typeof remote.zuletzt==='number' && remote.zuletzt>syncState.zuletzt){
       var rsnap=syncSnapshot(remote.daten||{});
       if(rsnap!==snap){
-        if(Date.now()-syncState.localDirtyAt>20000 && Date.now()-(syncState.letzterReload||0)>60000){
-          syncRemoteAnwenden(remote);
-          syncState.zuletzt=remote.zuletzt; syncState.letzterReload=Date.now(); syncSpeichern();
-          location.reload(); return;
+        if(Date.now()-syncState.localDirtyAt>20000){
+          syncUebernehmen(remote);
+          syncStatus('🟢 Stand vom anderen Gerät übernommen');
+          return;
         }
         syncBanner(remote); return;
       }
@@ -4334,7 +4376,7 @@ async function syncTick(erzwingen){
   }
 }
 function syncNachAenderung(){
-  if(!syncState.aktiv||!syncState.token)return;
+  if(!syncState.aktiv||!syncState.token||syncAnwendenLaeuft)return;
   if(syncSnapshot()===syncState.pushedSnapshot)return; // nur Chartpunkt o. Ä. – nichts Relevantes
   syncState.localDirtyAt=Date.now();
   clearTimeout(syncPushTimer);
@@ -4357,12 +4399,11 @@ async function syncVerbinden(){
       syncState.gistId=gid; syncSpeichern();
       var remote=await syncGistLesen();
       if(remote&&remote.daten){
-        syncRemoteAnwenden(remote);
-        syncState.zuletzt=remote.zuletzt||Date.now(); syncSpeichern();
-        syncStatus('✅ Verbunden – vorhandener Sync gefunden, Stand übernommen. Lädt neu …');
-        setTimeout(function(){ location.reload(); },900); return;
+        syncUebernehmen(remote);
+        syncStatus('✅ Verbunden – vorhandener Sync gefunden, Stand übernommen.');
+      }else{
+        syncStatus('✅ Verbunden – vorhandener Sync gefunden.');
       }
-      syncStatus('✅ Verbunden – vorhandener Sync gefunden.');
     }else{
       var ts=Date.now();
       await syncGistSchreiben({zuletzt:ts,geraet:syncState.geraet,daten:syncDaten()});
