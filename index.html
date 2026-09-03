@@ -116,7 +116,7 @@ h1{margin:0;font-size:22px}
 <body>
 <header>
 <h1>📊 Marktblick</h1>
-<div class="sub">Kurse in Echtzeit · Stand 04.09.2026 (Auto-Sync PC ↔ Handy)</div>
+<div class="sub">Kurse in Echtzeit · Stand 04.09.2026 (Auto-Sync sparsamer)</div>
 </header>
 <div class="tabs">
 <button class="tab-btn active" id="tab-krypto" onclick="wechsleTab('krypto')">🪙 Krypto</button>
@@ -4187,8 +4187,9 @@ sparplanAnzeigen();
 var SYNC_KEYS=['mb_demo','mb_sparplan','mb_eigene_coins','mb_eigene_aktien','mb_eigene_rohstoffe','mb_krypto_alarme','mb_aktien_alarme','mb_rohstoff_alarme','mb_binance_paare'];
 var SYNC_DATEI='marktblick.json';
 var SYNC_BESCHREIBUNG='Marktblick Sync';
-var syncState={token:'',gistId:'',aktiv:false,zuletzt:0,geraet:'',pushedSnapshot:'',lastSeenSnapshot:'',localDirtyAt:0};
+var syncState={token:'',gistId:'',aktiv:false,zuletzt:0,geraet:'',pushedSnapshot:'',lastSeenSnapshot:'',localDirtyAt:0,etag:''};
 var syncTimer=null, syncPushTimer=null, syncLaeuft=false;
+function syncSichtbar(){ return typeof document==='undefined' || document.visibilityState!=='hidden'; }
 
 function syncLaden(){
   var d; try{ d=JSON.parse(localStorage.getItem('mb_sync')); }catch(e){}
@@ -4242,7 +4243,16 @@ async function syncGistFinden(){
   return '';
 }
 async function syncGistLesen(){
-  var g=await syncApi('/gists/'+syncState.gistId);
+  // Bedingte Abfrage: hat sich seit dem letzten Mal nichts geändert, antwortet GitHub
+  // mit 304 (ohne Inhalt) und es zählt nicht aufs Kontingent – spart Datenvolumen.
+  var h={'Authorization':'Bearer '+syncState.token,'Accept':'application/vnd.github+json'};
+  if(syncState.etag)h['If-None-Match']=syncState.etag;
+  var r=await fetch('https://api.github.com/gists/'+syncState.gistId,{headers:h,cache:'no-store'});
+  if(r.status===304) return '__unveraendert__';
+  if(r.status===401||r.status===403)throw new Error('Token ungültig oder ohne „gist"-Recht.');
+  if(!r.ok)throw new Error('GitHub-Fehler '+r.status);
+  var et=r.headers.get('ETag'); if(et)syncState.etag=et;
+  var g=await r.json();
   var f=g.files&&g.files[SYNC_DATEI];
   if(!f)return null;
   var inhalt=f.content;
@@ -4251,9 +4261,16 @@ async function syncGistLesen(){
 }
 async function syncGistSchreiben(payload){
   var files={}; files[SYNC_DATEI]={content:JSON.stringify(payload)};
-  var opt={method:syncState.gistId?'PATCH':'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({description:SYNC_BESCHREIBUNG,public:false,files:files})};
-  var g=await syncApi(syncState.gistId?('/gists/'+syncState.gistId):'/gists',opt);
+  var r=await fetch('https://api.github.com/gists'+(syncState.gistId?('/'+syncState.gistId):''),{
+    method:syncState.gistId?'PATCH':'POST',
+    headers:{'Authorization':'Bearer '+syncState.token,'Accept':'application/vnd.github+json','Content-Type':'application/json'},
+    body:JSON.stringify({description:SYNC_BESCHREIBUNG,public:false,files:files}),
+    cache:'no-store'
+  });
+  if(r.status===401||r.status===403)throw new Error('Token ungültig oder ohne „gist"-Recht.');
+  if(!r.ok)throw new Error('GitHub-Fehler '+r.status);
+  var et=r.headers.get('ETag'); if(et)syncState.etag=et;
+  var g=await r.json();
   if(!syncState.gistId&&g&&g.id){ syncState.gistId=g.id; syncSpeichern(); }
 }
 function syncRemoteAnwenden(payload){
@@ -4270,8 +4287,9 @@ function syncBannerLaden(){
   syncState.zuletzt=p.zuletzt||Date.now(); syncSpeichern();
   location.reload();
 }
-async function syncTick(){
+async function syncTick(erzwingen){
   if(syncLaeuft||!syncState.token||!syncState.aktiv)return;
+  if(!erzwingen && !syncSichtbar())return; // im Hintergrund / Bildschirm aus: nichts abfragen
   syncLaeuft=true;
   try{
     if(!syncState.gistId){
@@ -4281,6 +4299,7 @@ async function syncTick(){
     var snap=syncSnapshot();
     if(snap!==syncState.lastSeenSnapshot){ syncState.localDirtyAt=Date.now(); syncState.lastSeenSnapshot=snap; }
     var remote = syncState.gistId ? await syncGistLesen() : null;
+    if(remote==='__unveraendert__') remote=null; // nichts Neues aus der Ferne – nur noch Push prüfen
     if(remote && typeof remote.zuletzt==='number' && remote.zuletzt>syncState.zuletzt){
       var rsnap=syncSnapshot(remote.daten||{});
       if(rsnap!==snap){
@@ -4309,17 +4328,17 @@ function syncNachAenderung(){
   if(!syncState.aktiv||!syncState.token)return;
   syncState.localDirtyAt=Date.now();
   clearTimeout(syncPushTimer);
-  syncPushTimer=setTimeout(syncTick,5000);
+  syncPushTimer=setTimeout(function(){ syncTick(true); },5000); // eigene Änderung immer hochladen
 }
 function syncIntervallStarten(){
   clearInterval(syncTimer);
-  if(syncState.aktiv&&syncState.token) syncTimer=setInterval(syncTick,15000);
+  if(syncState.aktiv&&syncState.token) syncTimer=setInterval(function(){ syncTick(false); },30000);
 }
 async function syncVerbinden(){
   var inp=document.getElementById('sync-token');
   var tok=((inp&&inp.value)||'').trim();
   if(!tok){ syncStatus('⚠️ Bitte den Token einfügen.'); return; }
-  syncState.token=tok; syncState.aktiv=true; syncState.gistId=''; syncState.zuletzt=0; syncState.pushedSnapshot='';
+  syncState.token=tok; syncState.aktiv=true; syncState.gistId=''; syncState.zuletzt=0; syncState.pushedSnapshot=''; syncState.etag='';
   var an=document.getElementById('sync-an'); if(an)an.checked=true;
   syncStatus('… verbinde mit GitHub …');
   try{
@@ -4349,7 +4368,7 @@ async function syncVerbinden(){
   }
 }
 function syncTrennen(){
-  syncState.token=''; syncState.aktiv=false; syncState.gistId=''; syncState.zuletzt=0;
+  syncState.token=''; syncState.aktiv=false; syncState.gistId=''; syncState.zuletzt=0; syncState.etag='';
   syncSpeichern();
   clearInterval(syncTimer); clearTimeout(syncPushTimer);
   var inp=document.getElementById('sync-token'); if(inp)inp.value='';
@@ -4361,13 +4380,13 @@ function syncSchalter(){
   if(!syncState.token){ if(an)an.checked=false; syncStatus('⚠️ Erst mit Token „Verbinden".'); return; }
   syncState.aktiv=!!(an&&an.checked);
   syncSpeichern(); syncIntervallStarten();
-  if(syncState.aktiv){ syncStatus('… Auto-Sync an …'); syncTick(); }
+  if(syncState.aktiv){ syncStatus('… Auto-Sync an …'); syncTick(true); }
   else syncStatusAuffrischen();
 }
 function syncJetzt(){
   if(!syncState.token){ syncStatus('⚠️ Erst verbinden.'); return; }
   if(!syncState.aktiv){ syncState.aktiv=true; var an=document.getElementById('sync-an'); if(an)an.checked=true; syncSpeichern(); syncIntervallStarten(); }
-  syncStatus('… gleiche ab …'); syncTick();
+  syncStatus('… gleiche ab …'); syncTick(true);
 }
 (function syncInit(){
   syncLaden();
@@ -4375,7 +4394,10 @@ function syncJetzt(){
   var an=document.getElementById('sync-an'); if(an)an.checked=syncState.aktiv;
   syncState.lastSeenSnapshot=syncSnapshot();
   syncStatusAuffrischen();
-  if(syncState.aktiv&&syncState.token){ syncIntervallStarten(); setTimeout(syncTick,1500); }
+  if(syncState.aktiv&&syncState.token){ syncIntervallStarten(); setTimeout(function(){ syncTick(true); },1500); }
+  document.addEventListener('visibilitychange',function(){
+    if(document.visibilityState==='visible' && syncState.aktiv && syncState.token) syncTick(true);
+  });
 })();
 </script>
 </body>
