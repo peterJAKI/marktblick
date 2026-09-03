@@ -116,7 +116,7 @@ h1{margin:0;font-size:22px}
 <body>
 <header>
 <h1>📊 Marktblick</h1>
-<div class="sub">Kurse in Echtzeit · Stand 03.09.2026 (Coin: Heute-Zeile)</div>
+<div class="sub">Kurse in Echtzeit · Stand 03.09.2026 (Heute auch in Euro)</div>
 </header>
 <div class="tabs">
 <button class="tab-btn active" id="tab-krypto" onclick="wechsleTab('krypto')">🪙 Krypto</button>
@@ -1075,9 +1075,15 @@ async function aktieInfoOeffnen(sym){
     var d=aktienDaten[sym]||{};
     var chg=(d.previousClose)?((d.price-d.previousClose)/d.previousClose*100):null;
     var diff=(typeof d.price==='number'&&typeof d.previousClose==='number')?(d.price-d.previousClose):null;
-    var heuteTxt=(diff!=null&&chg!=null)
-      ? '<span style="color:'+(diff>=0?'#4caf50':'#f44336')+'">'+(diff>=0?'+':'−')+Math.abs(diff).toLocaleString('de-DE',{maximumFractionDigits:2})+' $ ('+(diff>=0?'+':'−')+Math.abs(chg).toFixed(2)+' %)</span>'
-      : null;
+    var heuteTxt=null;
+    if(diff!=null&&chg!=null){
+      var vz=(diff>=0?'+':'−');
+      var eurTeil='';
+      if(eurUsdRate&&eurUsdRate>0&&eurUsdRate!==1){
+        eurTeil=' ≈ '+vz+Math.abs(diff*eurUsdRate).toLocaleString('de-DE',{maximumFractionDigits:2})+' €';
+      }
+      heuteTxt='<span style="color:'+(diff>=0?'#4caf50':'#f44336')+'">'+vz+Math.abs(diff).toLocaleString('de-DE',{maximumFractionDigits:2})+' $'+eurTeil+' ('+vz+Math.abs(chg).toFixed(2)+' %)</span>';
+    }
     var num=function(v,dez){return (typeof v==='number'&&isFinite(v))?v.toLocaleString('de-DE',{maximumFractionDigits:dez==null?2:dez}):null;};
     var kgv=num(m.peTTM!=null?m.peTTM:m.peBasicExclExtraTTM,1);
     var divRend=num(m.currentDividendYieldTTM!=null?m.currentDividendYieldTTM:m.dividendYieldIndicatedAnnual,2);
