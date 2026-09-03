@@ -116,7 +116,7 @@ h1{margin:0;font-size:22px}
 <body>
 <header>
 <h1>📊 Marktblick</h1>
-<div class="sub">Kurse in Echtzeit · Stand 04.09.2026 (Sparplan: rot verkaufen + Diagramm)</div>
+<div class="sub">Kurse in Echtzeit · Stand 04.09.2026 (Auto-Sync PC ↔ Handy)</div>
 </header>
 <div class="tabs">
 <button class="tab-btn active" id="tab-krypto" onclick="wechsleTab('krypto')">🪙 Krypto</button>
@@ -589,7 +589,23 @@ Vorlagen: <a href="#" onclick="demoPreset(2,1);return false" style="color:#2962f
 <button onclick="demoImportieren()">📥 Importieren</button>
 </div>
 <div class="rechner-ergebnis" id="demo-transfer-info" style="font-size:12px;font-weight:normal;color:#ddd;text-align:left"></div>
-<div class="signal-hinweis">Das Demo-Depot liegt nur lokal auf dem Gerät und wird nicht automatisch synchronisiert. Am einen Gerät „Exportieren + kopieren", Code z. B. per Mail ans andere Gerät schicken. Dort: „📋 Aus Zwischenablage einfügen" (holt den Code direkt) oder von Hand ins Feld einfügen, dann „📥 Importieren". Der Import ersetzt das dortige Depot komplett.</div>
+<div class="signal-hinweis">Das Demo-Depot liegt nur lokal auf dem Gerät. Am einen Gerät „Exportieren + kopieren", Code z. B. per Mail ans andere Gerät schicken. Dort: „📋 Aus Zwischenablage einfügen" (holt den Code direkt) oder von Hand ins Feld einfügen, dann „📥 Importieren". Der Import ersetzt das dortige Depot komplett. Für automatischen Abgleich siehe „🔁 Auto-Sync" unten.</div>
+</div>
+</div>
+<div class="rechner" style="max-width:640px">
+<div class="rechner-titel" id="titel-sync" onclick="rechnerUmschalten('sync')"><span class="rechner-pfeil" id="pfeil-sync">▸</span>🔁 Auto-Sync (PC ↔ Handy)</div>
+<div class="rechner-body" id="body-sync">
+<div class="signal-hinweis" style="margin-top:0">Gleicht Demo-Depot, Sparplan, eigene Coins/Aktien und Alarme automatisch über einen <b>privaten GitHub-Gist</b> ab. Einmal pro Gerät einrichten: <a href="https://github.com/settings/tokens/new?scopes=gist&description=Marktblick" target="_blank" rel="noopener">GitHub-Token mit „gist"-Recht erstellen</a>, unten einfügen, „Verbinden". Der Token bleibt nur im Speicher dieses Geräts und kann ausschließlich Gists lesen/schreiben.</div>
+<div class="rechner-zeile" style="flex-wrap:wrap">
+<input type="password" id="sync-token" autocomplete="off" placeholder="GitHub-Token (gist)" style="flex:1;min-width:180px;background:#121212;color:#eee;border:1px solid #333;border-radius:8px;padding:8px">
+<button onclick="syncVerbinden()">Verbinden</button>
+<button class="grau" onclick="syncTrennen()">Trennen</button>
+</div>
+<div class="rechner-zeile" style="margin-top:6px">
+<label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="sync-an" onchange="syncSchalter()"> Auto-Sync aktiv</label>
+<button class="grau" onclick="syncJetzt()">🔄 Jetzt abgleichen</button>
+</div>
+<div id="sync-status" style="font-size:12px;color:#bbb;margin-top:6px">⚪ nicht verbunden</div>
 </div>
 </div>
 <button class="refresh-btn" onclick="demoZuruecksetzen()">↺ Depot auf 10.000 € zurücksetzen</button>
@@ -624,8 +640,8 @@ function rechnerUmschalten(id){
   localStorage.setItem('mb_rechner_zu',JSON.stringify(z));
   wendeRechnerZustandAn(id);
 }
-(function(){var z=rechnerZustand();var ch=false;['dgv','dtr','dtf','knews','anews'].forEach(function(k){if(z[k]===undefined){z[k]=true;ch=true;}});if(ch)localStorage.setItem('mb_rechner_zu',JSON.stringify(z));})();
-['kr1','kr2','ak1','ak2','dgv','dtr','dst','dvl','dtf','knews','anews','spl'].forEach(wendeRechnerZustandAn);
+(function(){var z=rechnerZustand();var ch=false;['dgv','dtr','dtf','knews','anews','sync'].forEach(function(k){if(z[k]===undefined){z[k]=true;ch=true;}});if(ch)localStorage.setItem('mb_rechner_zu',JSON.stringify(z));})();
+['kr1','kr2','ak1','ak2','dgv','dtr','dst','dvl','dtf','knews','anews','spl','sync'].forEach(wendeRechnerZustandAn);
 function demoGvUmschalten(){
   rechnerUmschalten('dgv');
   if(!rechnerZustand().dgv){setTimeout(function(){demoWerteAktualisieren();},40);}
@@ -2095,7 +2111,7 @@ function demoLaden(){
   if(!Array.isArray(x.tresorVerlauf))x.tresorVerlauf=[];
   return x;
 }
-function demoSpeichern(x){localStorage.setItem('mb_demo',JSON.stringify(x));}
+function demoSpeichern(x){localStorage.setItem('mb_demo',JSON.stringify(x));if(typeof syncNachAenderung==='function')syncNachAenderung();}
 // Handelbare Werte: Krypto-Coins (id) + Aktien (id = "aktie:SYMBOL", Preis in USD -> in € umgerechnet)
 function demoAktienAlle(){
   var m={},out=[];
@@ -3767,7 +3783,7 @@ function sparplanLaden(){
   if(typeof d.verkaufSteuer!=='number')d.verkaufSteuer=0;
   return d;
 }
-function sparplanSpeichern(d){localStorage.setItem('mb_sparplan',JSON.stringify(d));}
+function sparplanSpeichern(d){localStorage.setItem('mb_sparplan',JSON.stringify(d));if(typeof syncNachAenderung==='function')syncNachAenderung();}
 function sparplanCoinId(sym){ return sym.indexOf('coin:')===0 ? sym.slice(5) : null; }
 function sparplanName(sym){
   var cid=sparplanCoinId(sym);
@@ -4166,6 +4182,201 @@ function sparplanUmschalten(){
 sparplanDropdowns();
 sparplanChartZustand();
 sparplanAnzeigen();
+
+/* ===== Auto-Sync über einen privaten GitHub-Gist ===== */
+var SYNC_KEYS=['mb_demo','mb_sparplan','mb_eigene_coins','mb_eigene_aktien','mb_eigene_rohstoffe','mb_krypto_alarme','mb_aktien_alarme','mb_rohstoff_alarme','mb_binance_paare'];
+var SYNC_DATEI='marktblick.json';
+var SYNC_BESCHREIBUNG='Marktblick Sync';
+var syncState={token:'',gistId:'',aktiv:false,zuletzt:0,geraet:'',pushedSnapshot:'',lastSeenSnapshot:'',localDirtyAt:0};
+var syncTimer=null, syncPushTimer=null, syncLaeuft=false;
+
+function syncLaden(){
+  var d; try{ d=JSON.parse(localStorage.getItem('mb_sync')); }catch(e){}
+  if(d&&typeof d==='object'){
+    syncState.token=d.token||''; syncState.gistId=d.gistId||'';
+    syncState.aktiv=!!d.aktiv; syncState.zuletzt=d.zuletzt||0; syncState.geraet=d.geraet||'';
+  }
+  if(!syncState.geraet)syncState.geraet='Gerät-'+Math.random().toString(36).slice(2,6);
+}
+function syncSpeichern(){
+  localStorage.setItem('mb_sync',JSON.stringify({token:syncState.token,gistId:syncState.gistId,aktiv:syncState.aktiv,zuletzt:syncState.zuletzt,geraet:syncState.geraet}));
+}
+function syncNorm(raw){ if(raw==null)return null; try{ return JSON.stringify(JSON.parse(raw)); }catch(e){ return raw; } }
+function syncSnapshot(obj){
+  return JSON.stringify(SYNC_KEYS.map(function(k){
+    if(obj) return [k, (obj[k]===undefined||obj[k]===null)?null:JSON.stringify(obj[k])];
+    return [k, syncNorm(localStorage.getItem(k))];
+  }));
+}
+function syncDaten(){
+  var o={};
+  SYNC_KEYS.forEach(function(k){ var raw=localStorage.getItem(k); if(raw!=null){ try{ o[k]=JSON.parse(raw); }catch(e){} } });
+  return o;
+}
+function syncStatus(txt){ var el=document.getElementById('sync-status'); if(el)el.innerHTML=txt; }
+function syncVorZeit(ts){
+  var s=Math.round((Date.now()-ts)/1000);
+  if(s<60)return 'vor '+s+' Sek.';
+  if(s<3600)return 'vor '+Math.round(s/60)+' Min.';
+  if(s<86400)return 'vor '+Math.round(s/3600)+' Std.';
+  return 'vor '+Math.round(s/86400)+' Tg.';
+}
+function syncStatusAuffrischen(){
+  if(!syncState.token){ syncStatus('⚪ nicht verbunden'); return; }
+  if(!syncState.aktiv){ syncStatus('⏸️ verbunden, Auto-Sync aus'); return; }
+  syncStatus('🟢 Auto-Sync an · '+(syncState.zuletzt?('zuletzt '+syncVorZeit(syncState.zuletzt)):'noch nicht abgeglichen'));
+}
+async function syncApi(pfad,opt){
+  opt=opt||{};
+  opt.headers=Object.assign({'Authorization':'Bearer '+syncState.token,'Accept':'application/vnd.github+json'},opt.headers||{});
+  var r=await fetch('https://api.github.com'+pfad,opt);
+  if(r.status===401||r.status===403)throw new Error('Token ungültig oder ohne „gist"-Recht.');
+  if(!r.ok)throw new Error('GitHub-Fehler '+r.status);
+  return r.json();
+}
+async function syncGistFinden(){
+  var liste=await syncApi('/gists?per_page=100');
+  for(var i=0;i<liste.length;i++){
+    if(liste[i].description===SYNC_BESCHREIBUNG && liste[i].files && liste[i].files[SYNC_DATEI]) return liste[i].id;
+  }
+  return '';
+}
+async function syncGistLesen(){
+  var g=await syncApi('/gists/'+syncState.gistId);
+  var f=g.files&&g.files[SYNC_DATEI];
+  if(!f)return null;
+  var inhalt=f.content;
+  if(f.truncated&&f.raw_url){ try{ inhalt=await fetch(f.raw_url).then(function(x){return x.text();}); }catch(e){} }
+  try{ return JSON.parse(inhalt); }catch(e){ return null; }
+}
+async function syncGistSchreiben(payload){
+  var files={}; files[SYNC_DATEI]={content:JSON.stringify(payload)};
+  var opt={method:syncState.gistId?'PATCH':'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({description:SYNC_BESCHREIBUNG,public:false,files:files})};
+  var g=await syncApi(syncState.gistId?('/gists/'+syncState.gistId):'/gists',opt);
+  if(!syncState.gistId&&g&&g.id){ syncState.gistId=g.id; syncSpeichern(); }
+}
+function syncRemoteAnwenden(payload){
+  var d=(payload&&payload.daten)||{};
+  SYNC_KEYS.forEach(function(k){ if(d[k]!==undefined&&d[k]!==null) localStorage.setItem(k,JSON.stringify(d[k])); });
+}
+function syncBanner(payload){
+  window.__syncWartend=payload;
+  syncStatus('🔵 Neuer Stand vom anderen Gerät ('+(payload.geraet||'?')+') – <a href="#" onclick="syncBannerLaden();return false;">jetzt laden</a>');
+}
+function syncBannerLaden(){
+  var p=window.__syncWartend; if(!p)return;
+  syncRemoteAnwenden(p);
+  syncState.zuletzt=p.zuletzt||Date.now(); syncSpeichern();
+  location.reload();
+}
+async function syncTick(){
+  if(syncLaeuft||!syncState.token||!syncState.aktiv)return;
+  syncLaeuft=true;
+  try{
+    if(!syncState.gistId){
+      var gid=await syncGistFinden();
+      if(gid){ syncState.gistId=gid; syncSpeichern(); }
+    }
+    var snap=syncSnapshot();
+    if(snap!==syncState.lastSeenSnapshot){ syncState.localDirtyAt=Date.now(); syncState.lastSeenSnapshot=snap; }
+    var remote = syncState.gistId ? await syncGistLesen() : null;
+    if(remote && typeof remote.zuletzt==='number' && remote.zuletzt>syncState.zuletzt){
+      var rsnap=syncSnapshot(remote.daten||{});
+      if(rsnap!==snap){
+        if(Date.now()-syncState.localDirtyAt>20000){
+          syncRemoteAnwenden(remote);
+          syncState.zuletzt=remote.zuletzt; syncSpeichern();
+          location.reload(); return;
+        }
+        syncBanner(remote); return;
+      }
+      syncState.zuletzt=remote.zuletzt; syncSpeichern();
+    }
+    if(snap!==syncState.pushedSnapshot){
+      var ts=Date.now();
+      await syncGistSchreiben({zuletzt:ts,geraet:syncState.geraet,daten:syncDaten()});
+      syncState.pushedSnapshot=snap; syncState.zuletzt=ts; syncSpeichern();
+    }
+    syncStatusAuffrischen();
+  }catch(e){
+    syncStatus('⚠️ '+((e&&e.message)||'Sync-Fehler'));
+  }finally{
+    syncLaeuft=false;
+  }
+}
+function syncNachAenderung(){
+  if(!syncState.aktiv||!syncState.token)return;
+  syncState.localDirtyAt=Date.now();
+  clearTimeout(syncPushTimer);
+  syncPushTimer=setTimeout(syncTick,5000);
+}
+function syncIntervallStarten(){
+  clearInterval(syncTimer);
+  if(syncState.aktiv&&syncState.token) syncTimer=setInterval(syncTick,15000);
+}
+async function syncVerbinden(){
+  var inp=document.getElementById('sync-token');
+  var tok=((inp&&inp.value)||'').trim();
+  if(!tok){ syncStatus('⚠️ Bitte den Token einfügen.'); return; }
+  syncState.token=tok; syncState.aktiv=true; syncState.gistId=''; syncState.zuletzt=0; syncState.pushedSnapshot='';
+  var an=document.getElementById('sync-an'); if(an)an.checked=true;
+  syncStatus('… verbinde mit GitHub …');
+  try{
+    var gid=await syncGistFinden();
+    if(gid){
+      syncState.gistId=gid; syncSpeichern();
+      var remote=await syncGistLesen();
+      if(remote&&remote.daten){
+        syncRemoteAnwenden(remote);
+        syncState.zuletzt=remote.zuletzt||Date.now(); syncSpeichern();
+        syncStatus('✅ Verbunden – vorhandener Sync gefunden, Stand übernommen. Lädt neu …');
+        setTimeout(function(){ location.reload(); },900); return;
+      }
+      syncStatus('✅ Verbunden – vorhandener Sync gefunden.');
+    }else{
+      var ts=Date.now();
+      await syncGistSchreiben({zuletzt:ts,geraet:syncState.geraet,daten:syncDaten()});
+      syncState.zuletzt=ts; syncState.pushedSnapshot=syncSnapshot(); syncSpeichern();
+      syncStatus('✅ Verbunden – neuer Sync angelegt. Am anderen Gerät denselben Token einfügen.');
+    }
+    syncSpeichern();
+    syncIntervallStarten();
+    syncStatusAuffrischen();
+  }catch(e){
+    syncState.aktiv=false; syncSpeichern();
+    syncStatus('⚠️ '+((e&&e.message)||'Verbindung fehlgeschlagen'));
+  }
+}
+function syncTrennen(){
+  syncState.token=''; syncState.aktiv=false; syncState.gistId=''; syncState.zuletzt=0;
+  syncSpeichern();
+  clearInterval(syncTimer); clearTimeout(syncPushTimer);
+  var inp=document.getElementById('sync-token'); if(inp)inp.value='';
+  var an=document.getElementById('sync-an'); if(an)an.checked=false;
+  syncStatus('⚪ getrennt (der Gist bei GitHub bleibt bestehen)');
+}
+function syncSchalter(){
+  var an=document.getElementById('sync-an');
+  if(!syncState.token){ if(an)an.checked=false; syncStatus('⚠️ Erst mit Token „Verbinden".'); return; }
+  syncState.aktiv=!!(an&&an.checked);
+  syncSpeichern(); syncIntervallStarten();
+  if(syncState.aktiv){ syncStatus('… Auto-Sync an …'); syncTick(); }
+  else syncStatusAuffrischen();
+}
+function syncJetzt(){
+  if(!syncState.token){ syncStatus('⚠️ Erst verbinden.'); return; }
+  if(!syncState.aktiv){ syncState.aktiv=true; var an=document.getElementById('sync-an'); if(an)an.checked=true; syncSpeichern(); syncIntervallStarten(); }
+  syncStatus('… gleiche ab …'); syncTick();
+}
+(function syncInit(){
+  syncLaden();
+  var inp=document.getElementById('sync-token'); if(inp&&syncState.token)inp.value=syncState.token;
+  var an=document.getElementById('sync-an'); if(an)an.checked=syncState.aktiv;
+  syncState.lastSeenSnapshot=syncSnapshot();
+  syncStatusAuffrischen();
+  if(syncState.aktiv&&syncState.token){ syncIntervallStarten(); setTimeout(syncTick,1500); }
+})();
 </script>
 </body>
 </html>
