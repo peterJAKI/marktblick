@@ -116,7 +116,7 @@ h1{margin:0;font-size:22px}
 <body>
 <header>
 <h1>📊 Marktblick</h1>
-<div class="sub">Kurse in Echtzeit · Stand 02.09.2026 (Suchleiste)</div>
+<div class="sub">Kurse in Echtzeit · Stand 03.09.2026 (Aktien-Infos)</div>
 </header>
 <div class="tabs">
 <button class="tab-btn active" id="tab-krypto" onclick="wechsleTab('krypto')">🪙 Krypto</button>
@@ -225,6 +225,8 @@ h1{margin:0;font-size:22px}
 <button onclick="aktieHinzufuegen()">➕ Hinzufügen</button>
 </div>
 <div class="such-hinweis" id="aktien-such-status"></div>
+<div class="such-hinweis">👆 Auf eine Aktie tippen für Hintergrund-Infos.</div>
+<div class="rechner" id="aktien-info-panel" style="display:none;max-width:640px"></div>
 <div class="demo-alarm" id="aktien-alarm-banner" style="display:none"></div>
 <div class="rechner">
 <div class="rechner-titel">🔔 Kurs-Alarm Aktien</div>
@@ -993,14 +995,14 @@ async function ladeAktien(){
       var aktie=alleAktien[i];
       var res=await fetch('https://finnhub.io/api/v1/quote?symbol='+aktie.symbol+'&token='+FINNHUB_KEY);
       var d=await res.json();
-      aktienDaten[aktie.symbol]={price:d.c,previousClose:d.pc};
+      aktienDaten[aktie.symbol]={price:d.c,previousClose:d.pc,high:d.h,low:d.l};
       var change=d.pc?((d.c-d.pc)/d.pc*100):null;
       var a=formatiereAenderung(change);
       var istEigen=eigene.some(function(x){return x.symbol===aktie.symbol;});
-      html+='<div class="coin" id="arow-'+aktie.symbol+'">'
+      html+='<div class="coin" id="arow-'+aktie.symbol+'" style="cursor:pointer" onclick="aktieInfoOeffnen(\''+aktie.symbol+'\')">'
         +'<div class="coin-info"><div class="coin-name">'+aktie.name+'</div><div class="coin-symbol">'+aktie.symbol+'</div></div>'
         +'<div class="coin-price"><div class="price" id="apreis-'+aktie.symbol+'">'+formatierePreis(d.c)+' $</div><div class="change '+a.klasse+'" id="achange-'+aktie.symbol+'">'+a.text+'</div></div>'
-        +(istEigen?'<button class="entfernen-btn" onclick="aktieEntfernen(\''+aktie.symbol+'\')" title="Entfernen">✕</button>':'')
+        +(istEigen?'<button class="entfernen-btn" onclick="event.stopPropagation();aktieEntfernen(\''+aktie.symbol+'\')" title="Entfernen">✕</button>':'')
         +'</div>';
     }
     document.getElementById('aktien-liste').innerHTML=html;
@@ -1015,6 +1017,70 @@ async function ladeAktien(){
     starteAktienTicker(alleAktien);
   }catch(e){
     document.getElementById('aktien-status').innerText='⚠️ Aktienkurse konnten nicht geladen werden.';
+  }
+}
+
+// --- Hintergrund-Infos zu einer Aktie ---
+var aktieInfoCache={}, aktieInfoAktiv=null;
+function aktieMarktkap(mio){
+  if(!mio||mio<=0)return '–';
+  if(mio>=1e6)return (mio/1e6).toLocaleString('de-DE',{maximumFractionDigits:2})+' Bio. $';
+  if(mio>=1e3)return (mio/1e3).toLocaleString('de-DE',{maximumFractionDigits:1})+' Mrd. $';
+  return Math.round(mio).toLocaleString('de-DE')+' Mio. $';
+}
+function aktieZeile(label,wert){
+  if(wert===undefined||wert===null||wert===''||wert==='–')return '';
+  return '<div style="display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px solid #222"><span style="color:#888">'+label+'</span><span style="text-align:right">'+wert+'</span></div>';
+}
+async function aktieInfoOeffnen(sym){
+  var el=document.getElementById('aktien-info-panel');
+  if(!el)return;
+  if(aktieInfoAktiv===sym && el.style.display!=='none'){ el.style.display='none'; aktieInfoAktiv=null; return; }
+  aktieInfoAktiv=sym;
+  el.style.display='block';
+  el.innerHTML='<div class="chart-kopf"><span>'+sym+'</span><button class="chart-zu" onclick="document.getElementById(\'aktien-info-panel\').style.display=\'none\'">✕</button></div><div style="color:#888;font-size:13px">⏳ Infos werden geladen…</div>';
+  try{
+    if(!aktieInfoCache[sym]){
+      var r=await Promise.all([
+        fetch('https://finnhub.io/api/v1/stock/profile2?symbol='+sym+'&token='+FINNHUB_KEY).then(function(x){return x.json();}).catch(function(){return {};}),
+        fetch('https://finnhub.io/api/v1/stock/metric?symbol='+sym+'&metric=all&token='+FINNHUB_KEY).then(function(x){return x.json();}).catch(function(){return {};})
+      ]);
+      aktieInfoCache[sym]={p:r[0]||{}, m:(r[1]&&r[1].metric)||{}};
+    }
+    if(aktieInfoAktiv!==sym)return; // Nutzer hat inzwischen geschlossen/andere gewählt
+    var p=aktieInfoCache[sym].p, m=aktieInfoCache[sym].m;
+    var d=aktienDaten[sym]||{};
+    var chg=(d.previousClose)?((d.price-d.previousClose)/d.previousClose*100):null;
+    var num=function(v,dez){return (typeof v==='number'&&isFinite(v))?v.toLocaleString('de-DE',{maximumFractionDigits:dez==null?2:dez}):null;};
+    var kgv=num(m.peTTM!=null?m.peTTM:m.peBasicExclExtraTTM,1);
+    var divRend=num(m.currentDividendYieldTTM!=null?m.currentDividendYieldTTM:m.dividendYieldIndicatedAnnual,2);
+    var h52=num(m['52WeekHigh']), l52=num(m['52WeekLow']);
+    var kopf='<div class="chart-kopf"><span>'
+      +(p.logo?'<img src="'+p.logo+'" alt="" style="width:20px;height:20px;border-radius:4px;vertical-align:middle;margin-right:8px;background:#fff">':'')
+      +(p.name||sym)+' ('+sym+')</span><button class="chart-zu" onclick="document.getElementById(\'aktien-info-panel\').style.display=\'none\'">✕</button></div>';
+    var body='<div style="font-size:13px">'
+      +aktieZeile('Branche', p.finnhubIndustry)
+      +aktieZeile('Börse', p.exchange)
+      +aktieZeile('Land', p.country)
+      +aktieZeile('Börsengang', p.ipo)
+      +aktieZeile('Marktkapitalisierung', aktieMarktkap(p.marketCapitalization))
+      +aktieZeile('Kurs jetzt', num(d.price)!=null?num(d.price)+' $'+(chg!=null?' ('+(chg>=0?'+':'')+chg.toFixed(2)+' %)':''):null)
+      +aktieZeile('Tages­spanne', (num(d.low)!=null&&num(d.high)!=null)?num(d.low)+' – '+num(d.high)+' $':null)
+      +aktieZeile('Vortagesschluss', num(d.previousClose)!=null?num(d.previousClose)+' $':null)
+      +aktieZeile('52-Wochen-Spanne', (l52&&h52)?l52+' – '+h52+' $':null)
+      +aktieZeile('KGV (P/E, TTM)', kgv)
+      +aktieZeile('Dividendenrendite', divRend!=null?divRend+' %':null)
+      +aktieZeile('Beta', num(m.beta,2))
+      +(p.weburl?'<div style="margin-top:8px"><a href="'+p.weburl+'" target="_blank" rel="noopener" style="color:#2962ff;font-weight:bold">'+p.weburl.replace(/^https?:\/\//,'').replace(/\/$/,'')+' ↗</a></div>':'')
+      +'<div class="signal-hinweis" style="margin-top:8px">Angaben ohne Gewähr · Quelle: Finnhub · keine Anlageberatung.</div>'
+      +'</div>';
+    if(!p.name && !p.finnhubIndustry && !h52){
+      el.innerHTML=kopf+'<div style="color:#888;font-size:13px">Für diese Aktie sind keine Zusatz-Infos verfügbar.</div>';
+      return;
+    }
+    el.innerHTML=kopf+body;
+  }catch(e){
+    el.innerHTML='<div class="chart-kopf"><span>'+sym+'</span><button class="chart-zu" onclick="document.getElementById(\'aktien-info-panel\').style.display=\'none\'">✕</button></div><div style="color:#888;font-size:13px">⚠️ Infos gerade nicht abrufbar.</div>';
   }
 }
 
