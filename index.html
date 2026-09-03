@@ -116,7 +116,7 @@ h1{margin:0;font-size:22px}
 <body>
 <header>
 <h1>📊 Marktblick</h1>
-<div class="sub">Kurse in Echtzeit · Stand 03.09.2026 (Sparplan realistisch)</div>
+<div class="sub">Kurse in Echtzeit · Stand 03.09.2026 (Sparplan-Diagramm)</div>
 </header>
 <div class="tabs">
 <button class="tab-btn active" id="tab-krypto" onclick="wechsleTab('krypto')">🪙 Krypto</button>
@@ -555,7 +555,10 @@ Vorlagen: <a href="#" onclick="demoPreset(2,1);return false" style="color:#2962f
 <button class="grau" onclick="sparplanZuruecksetzen()">↺ Zurücksetzen</button>
 </div>
 <div id="spl-status" style="font-size:13px;color:#ccc;line-height:1.7;margin-top:6px"></div>
-<div id="spl-chart" style="height:170px;margin-top:6px"></div>
+<div id="spl-chart" style="height:190px;margin-top:6px"></div>
+<div id="spl-legende" style="display:none;font-size:12px;color:#999;margin-top:3px">
+<span style="color:#4caf50">■</span> Depotwert&nbsp;&nbsp;<span style="color:#888">■</span> Eingezahlt&nbsp;&nbsp;<span style="color:#666">– der Abstand ist dein Gewinn/Verlust</span>
+</div>
 <div class="signal-hinweis">Spielgeld-Übung: alle 2 Wochen wird der Betrag (minus Ausführungsgebühr) zu gleichen Teilen in die 3 Aktien gesteckt – Bruchteile, plus ein kleiner Kauf-Aufschlag von 0,15 % (Spread). Nach je 26 Raten (≈ 1 Jahr) wird die Jahres-Dividende gutgeschrieben; darauf 26,375 % Steuer, aber 1.000 € pro Jahr steuerfrei (Sparerpauschbetrag). Der Rest wird sofort wieder angelegt. „Nächste Rate jetzt" spult vor, damit du das Wachstum beobachten kannst. Eigener Speicher, kein Zusammenhang mit dem normalen Demo-Depot.</div>
 </div>
 </div>
@@ -3726,7 +3729,7 @@ var SPL_DIV_ALLE=26;               // Dividende nach je 26 Raten (~1 Jahr)
 var SPL_SPREAD=0.15;               // % Kauf-Aufschlag (Spread) auf jeden Kaufbetrag
 var SPL_STEUER=26.375;             // % Abgeltungsteuer + Soli auf Dividenden
 var SPL_FREIBETRAG=1000;           // € Sparerpauschbetrag pro Jahr steuerfrei
-var splChart=null, splSerie=null, splPruefLaeuft=false;
+var splChart=null, splSerie=null, splEinSerie=null, splPruefLaeuft=false;
 
 function sparplanLaden(){
   var d; try{ d=JSON.parse(localStorage.getItem('mb_sparplan')); }catch(e){}
@@ -3845,7 +3848,7 @@ async function sparplanRateAusfuehren(){
   var t=Math.floor(Date.now()/1000);
   var last=d.verlauf[d.verlauf.length-1];
   if(last&&t<=last.t)t=last.t+1;
-  d.verlauf.push({t:t,v:Math.round(wert*100)/100});
+  d.verlauf.push({t:t,v:Math.round(wert*100)/100,e:Math.round(d.eingezahlt*100)/100});
   if(d.verlauf.length>600)d.verlauf.splice(0,d.verlauf.length-600);
   sparplanSpeichern(d);
   return true;
@@ -3897,7 +3900,9 @@ async function sparplanRateJetzt(){
 function sparplanZuruecksetzen(){
   if(!confirm('Sparplan wirklich zurücksetzen? Alle Sparplan-Positionen und der Verlauf werden gelöscht.'))return;
   localStorage.removeItem('mb_sparplan');
-  splChart=null; splSerie=null;
+  try{if(splChart)splChart.remove();}catch(e){}
+  splChart=null; splSerie=null; splEinSerie=null;
+  var leg=document.getElementById('spl-legende'); if(leg)leg.style.display='none';
   sparplanDropdowns(); sparplanAnzeigen();
 }
 async function sparplanPruefen(erzwingen){
@@ -3970,14 +3975,27 @@ function sparplanChartNeu(d){
     splChart=LightweightCharts.createChart(el,{
       autoSize:true,
       layout:{background:{color:'#000000'},textColor:'#ccc',fontSize:12},
-      grid:{vertLines:{color:'#2c2c2c'},horzLines:{color:'#2c2c2c'}},
-      timeScale:{timeVisible:true,borderColor:'#333'},
-      rightPriceScale:{borderColor:'#333'}
+      grid:{vertLines:{color:'#222'},horzLines:{color:'#222'}},
+      timeScale:{timeVisible:false,borderColor:'#333'},
+      rightPriceScale:{borderColor:'#333'},
+      crosshair:{horzLine:{visible:false},vertLine:{labelVisible:false}}
     });
-    splSerie=splChart.addAreaSeries({lineColor:'#4caf50',topColor:'rgba(76,175,80,0.35)',bottomColor:'rgba(76,175,80,0.03)',lineWidth:2,priceLineVisible:false});
+    splEinSerie=splChart.addLineSeries({color:'#888',lineWidth:2,lineStyle:0,priceLineVisible:false,lastValueVisible:false,lineType:LightweightCharts.LineType.WithSteps});
+    splSerie=splChart.addAreaSeries({lineColor:'#4caf50',topColor:'rgba(76,175,80,0.30)',bottomColor:'rgba(76,175,80,0.02)',lineWidth:2,priceLineVisible:false});
   }
-  var pts=(d.verlauf||[]).map(function(x){return {time:x.t,value:x.v};});
+  var roh=(d.verlauf||[]).slice();
+  var pts=[], ein=[], lastE=null, lastT=0;
+  for(var i=0;i<roh.length;i++){
+    var x=roh[i], tt=x.t;
+    if(tt<=lastT)tt=lastT+1; lastT=tt;
+    pts.push({time:tt,value:x.v});
+    if(typeof x.e==='number')lastE=x.e;
+    if(lastE!=null)ein.push({time:tt,value:lastE});
+  }
+  splEinSerie.setData(ein);
   splSerie.setData(pts);
+  var leg=document.getElementById('spl-legende');
+  if(leg)leg.style.display=pts.length?'block':'none';
   if(pts.length)splChart.timeScale().fitContent();
 }
 function sparplanUmschalten(){
