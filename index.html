@@ -116,7 +116,7 @@ h1{margin:0;font-size:22px}
 <body>
 <header>
 <h1>📊 Marktblick</h1>
-<div class="sub">Kurse in Echtzeit · Stand 03.09.2026 (Sparplan-Extra: verkaufen + Tresor)</div>
+<div class="sub">Kurse in Echtzeit · Stand 04.09.2026 (Sparplan: rot verkaufen + Diagramm)</div>
 </header>
 <div class="tabs">
 <button class="tab-btn active" id="tab-krypto" onclick="wechsleTab('krypto')">🪙 Krypto</button>
@@ -566,9 +566,12 @@ Vorlagen: <a href="#" onclick="demoPreset(2,1);return false" style="color:#2962f
 </div>
 <div class="rechner-zeile" style="color:#888;font-size:12px;margin-top:-2px">Einmaliger Kauf aus „Restgeld". Jede Extra-Position kannst du jederzeit einzeln verkaufen – der Netto-Gewinn (nach 26,375 % Steuer) wandert in den Sparplan-Tresor.</div>
 <div id="spl-status" style="font-size:13px;color:#ccc;line-height:1.7;margin-top:6px"></div>
-<div id="spl-chart" style="height:190px;margin-top:6px"></div>
-<div id="spl-legende" style="display:none;font-size:12px;color:#999;margin-top:3px">
-<span style="color:#4caf50">■</span> Depotwert&nbsp;&nbsp;<span style="color:#888">■</span> Eingezahlt&nbsp;&nbsp;<span style="color:#666">– der Abstand ist dein Gewinn/Verlust</span>
+<div id="spl-chart-tog" onclick="sparplanChartToggle()" style="cursor:pointer;color:#999;font-size:12px;margin-top:8px;user-select:none">▾ Diagramm</div>
+<div id="spl-chart-wrap">
+<div id="spl-chart" style="height:140px;margin-top:4px"></div>
+<div id="spl-legende" style="display:none;font-size:11px;color:#888;margin-top:2px">
+<span style="color:#3ddc84">■</span> Depotwert&nbsp;&nbsp;<span style="color:#5a5a5a">■</span> Eingezahlt&nbsp;&nbsp;<span style="color:#666">– Abstand = Gewinn/Verlust</span>
+</div>
 </div>
 <div class="signal-hinweis">Spielgeld-Übung: alle 2 Wochen wird der Betrag (minus Ausführungsgebühr) zu gleichen Teilen in die 3 Aktien gesteckt – Bruchteile, plus ein kleiner Kauf-Aufschlag von 0,15 % (Spread). Nach je 26 Raten (≈ 1 Jahr) wird die Jahres-Dividende gutgeschrieben; darauf 26,375 % Steuer, aber 1.000 € pro Jahr steuerfrei (Sparerpauschbetrag). Der Rest wird sofort wieder angelegt. „Nächste Rate jetzt" spult vor, damit du das Wachstum beobachten kannst. Extra-Positionen kannst du einzeln „Verkaufen": Kurs jetzt × Menge, auf den Gewinn 26,375 % Steuer, der Netto-Erlös geht in den <b>Sparplan-Tresor</b> (nur für den Sparplan, getrennt vom normalen Demo-Tresor). Eigener Speicher, kein Zusammenhang mit dem normalen Demo-Depot.</div>
 </div>
@@ -4061,7 +4064,7 @@ async function sparplanZeile(d,s,istExtra){
   if(istExtra){
     var gw=wS-(pos.kosten||0);
     gewinnTxt=' <span style="color:'+(gw>=0?'#4caf50':'#f44336')+'">'+(gw>=0?'▲ +':'▼ −')+eur(Math.abs(gw))+'</span>';
-    verkBtn=' <button class="grau" style="font-size:11px;padding:2px 7px;margin-left:4px" onclick="sparplanExtraVerkauf(\''+s+'\')">Verkaufen</button>';
+    verkBtn=' <button style="font-size:11px;padding:2px 9px;margin-left:5px;background:#c62828;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:bold" onclick="sparplanExtraVerkauf(\''+s+'\')">Verkaufen</button>';
   }
   return '<div style="margin-bottom:5px"><b>'+sparplanName(s)+'</b> ('+sparplanKuerzel(s)+')'+pctTxt+verkBtn
     +'<br><span style="color:#bbb">'+pos.menge.toLocaleString('de-DE',{maximumFractionDigits:cid?6:4})+einheit+' · Kurs '+(p?eur(p):'–')
@@ -4107,7 +4110,19 @@ async function sparplanAnzeigen(){
       +((d.steuerGesamt>0)?' · Steuer −'+eur(d.steuerGesamt)+' · angelegt '+eur(divNettoGes):' (wieder angelegt)')+'</div>'
     +'<div style="color:#888">Σ Gebühren + Kauf-Aufschlag: '+eur(d.kostenGesamt||0)+'</div>'
     +naechste;
-  sparplanChartNeu(d);
+  sparplanChartZustand();
+}
+function sparplanChartToggle(){
+  var zu=localStorage.getItem('mb_spl_chart_zu')==='1';
+  localStorage.setItem('mb_spl_chart_zu', zu?'0':'1');
+  sparplanChartZustand();
+}
+function sparplanChartZustand(){
+  var zu=localStorage.getItem('mb_spl_chart_zu')==='1';
+  var wrap=document.getElementById('spl-chart-wrap'), tog=document.getElementById('spl-chart-tog');
+  if(tog)tog.textContent=(zu?'▸ Diagramm':'▾ Diagramm');
+  if(wrap)wrap.style.display=zu?'none':'block';
+  if(!zu)sparplanChartNeu();
 }
 function sparplanChartNeu(d){
   d=d||sparplanLaden();
@@ -4119,14 +4134,15 @@ function sparplanChartNeu(d){
   if(!splChart){
     splChart=LightweightCharts.createChart(el,{
       autoSize:true,
-      layout:{background:{color:'#000000'},textColor:'#ccc',fontSize:12},
-      grid:{vertLines:{color:'#222'},horzLines:{color:'#222'}},
-      timeScale:{timeVisible:false,borderColor:'#333'},
-      rightPriceScale:{borderColor:'#333'},
-      crosshair:{horzLine:{visible:false},vertLine:{labelVisible:false}}
+      layout:{background:{color:'#000000'},textColor:'#666',fontSize:10},
+      grid:{vertLines:{visible:false},horzLines:{visible:false}},
+      timeScale:{timeVisible:false,borderVisible:false,fixLeftEdge:true,fixRightEdge:true},
+      rightPriceScale:{borderVisible:false,scaleMargins:{top:0.2,bottom:0.2}},
+      handleScroll:false,handleScale:false,
+      crosshair:{horzLine:{visible:false},vertLine:{visible:false}}
     });
-    splEinSerie=splChart.addLineSeries({color:'#888',lineWidth:2,lineStyle:0,priceLineVisible:false,lastValueVisible:false,lineType:LightweightCharts.LineType.WithSteps});
-    splSerie=splChart.addAreaSeries({lineColor:'#4caf50',topColor:'rgba(76,175,80,0.30)',bottomColor:'rgba(76,175,80,0.02)',lineWidth:2,priceLineVisible:false});
+    splEinSerie=splChart.addLineSeries({color:'#5a5a5a',lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false,lineType:LightweightCharts.LineType.WithSteps});
+    splSerie=splChart.addAreaSeries({lineColor:'#3ddc84',topColor:'rgba(61,220,132,0.20)',bottomColor:'rgba(61,220,132,0.0)',lineWidth:2,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
   }
   var roh=(d.verlauf||[]).slice();
   var pts=[], ein=[], lastE=null, lastT=0;
@@ -4148,6 +4164,7 @@ function sparplanUmschalten(){
   setTimeout(sparplanAnzeigen,60);
 }
 sparplanDropdowns();
+sparplanChartZustand();
 sparplanAnzeigen();
 </script>
 </body>
