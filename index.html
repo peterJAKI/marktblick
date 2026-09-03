@@ -116,7 +116,7 @@ h1{margin:0;font-size:22px}
 <body>
 <header>
 <h1>📊 Marktblick</h1>
-<div class="sub">Kurse in Echtzeit · Stand 03.09.2026 (Sparplan-Extra: auch Coins)</div>
+<div class="sub">Kurse in Echtzeit · Stand 03.09.2026 (Sparplan-Extra: verkaufen + Tresor)</div>
 </header>
 <div class="tabs">
 <button class="tab-btn active" id="tab-krypto" onclick="wechsleTab('krypto')">🪙 Krypto</button>
@@ -554,19 +554,23 @@ Vorlagen: <a href="#" onclick="demoPreset(2,1);return false" style="color:#2962f
 <button class="grau" onclick="sparplanRateJetzt()">⏩ Nächste Rate jetzt</button>
 <button class="grau" onclick="sparplanZuruecksetzen()">↺ Zurücksetzen</button>
 </div>
-<div class="rechner-zeile" style="border-top:1px solid #333;padding-top:8px;margin-top:4px;flex-wrap:wrap">
+<div class="rechner-zeile" style="border-top:1px solid #333;padding-top:8px;margin-top:4px">
 <span>➕ Extra einzahlen</span>
+<button id="spl-extra-tab-aktien" class="grau" onclick="sparplanExtraArtSetzen('aktien')">Aktien</button>
+<button id="spl-extra-tab-coins" class="grau" onclick="sparplanExtraArtSetzen('coins')">Coins</button>
+</div>
+<div class="rechner-zeile" style="flex-wrap:wrap">
 <select id="spl-extra-a" style="max-width:210px"></select>
 <input type="number" id="spl-extra-betrag" value="50" min="1" step="5" style="width:70px"><span>€</span>
 <button class="grau" onclick="sparplanExtraKauf()">Jetzt kaufen</button>
 </div>
-<div class="rechner-zeile" style="color:#888;font-size:12px;margin-top:-2px">Einmaliger Kauf aus „Restgeld" – beliebige Aktie oder Coin, wird eigene Position im Sparplan.</div>
+<div class="rechner-zeile" style="color:#888;font-size:12px;margin-top:-2px">Einmaliger Kauf aus „Restgeld". Jede Extra-Position kannst du jederzeit einzeln verkaufen – der Netto-Gewinn (nach 26,375 % Steuer) wandert in den Sparplan-Tresor.</div>
 <div id="spl-status" style="font-size:13px;color:#ccc;line-height:1.7;margin-top:6px"></div>
 <div id="spl-chart" style="height:190px;margin-top:6px"></div>
 <div id="spl-legende" style="display:none;font-size:12px;color:#999;margin-top:3px">
 <span style="color:#4caf50">■</span> Depotwert&nbsp;&nbsp;<span style="color:#888">■</span> Eingezahlt&nbsp;&nbsp;<span style="color:#666">– der Abstand ist dein Gewinn/Verlust</span>
 </div>
-<div class="signal-hinweis">Spielgeld-Übung: alle 2 Wochen wird der Betrag (minus Ausführungsgebühr) zu gleichen Teilen in die 3 Aktien gesteckt – Bruchteile, plus ein kleiner Kauf-Aufschlag von 0,15 % (Spread). Nach je 26 Raten (≈ 1 Jahr) wird die Jahres-Dividende gutgeschrieben; darauf 26,375 % Steuer, aber 1.000 € pro Jahr steuerfrei (Sparerpauschbetrag). Der Rest wird sofort wieder angelegt. „Nächste Rate jetzt" spult vor, damit du das Wachstum beobachten kannst. Eigener Speicher, kein Zusammenhang mit dem normalen Demo-Depot.</div>
+<div class="signal-hinweis">Spielgeld-Übung: alle 2 Wochen wird der Betrag (minus Ausführungsgebühr) zu gleichen Teilen in die 3 Aktien gesteckt – Bruchteile, plus ein kleiner Kauf-Aufschlag von 0,15 % (Spread). Nach je 26 Raten (≈ 1 Jahr) wird die Jahres-Dividende gutgeschrieben; darauf 26,375 % Steuer, aber 1.000 € pro Jahr steuerfrei (Sparerpauschbetrag). Der Rest wird sofort wieder angelegt. „Nächste Rate jetzt" spult vor, damit du das Wachstum beobachten kannst. Extra-Positionen kannst du einzeln „Verkaufen": Kurs jetzt × Menge, auf den Gewinn 26,375 % Steuer, der Netto-Erlös geht in den <b>Sparplan-Tresor</b> (nur für den Sparplan, getrennt vom normalen Demo-Tresor). Eigener Speicher, kein Zusammenhang mit dem normalen Demo-Depot.</div>
 </div>
 </div>
 <div class="rechner" style="max-width:640px">
@@ -3755,6 +3759,9 @@ function sparplanLaden(){
   if(!d.divProShare||typeof d.divProShare!=='object')d.divProShare={};
   if(!Array.isArray(d.verlauf))d.verlauf=[];
   if(!Array.isArray(d.extra))d.extra=[];
+  if(typeof d.tresor!=='number')d.tresor=0;
+  if(typeof d.gewinnRealisiert!=='number')d.gewinnRealisiert=0;
+  if(typeof d.verkaufSteuer!=='number')d.verkaufSteuer=0;
   return d;
 }
 function sparplanSpeichern(d){localStorage.setItem('mb_sparplan',JSON.stringify(d));}
@@ -3772,16 +3779,55 @@ function sparplanKuerzel(sym){
   if(cid){ var c=(aktuelleCoins||[]).filter(function(x){return x.id===cid;})[0]; return c?c.symbol.toUpperCase():cid; }
   return sym;
 }
+var sparplanExtraArt='aktien';
+function sparplanExtraArtSetzen(art){
+  sparplanExtraArt=(art==='coins')?'coins':'aktien';
+  var ba=document.getElementById('spl-extra-tab-aktien'), bc=document.getElementById('spl-extra-tab-coins');
+  if(ba)ba.style.outline=(sparplanExtraArt==='aktien')?'2px solid #4caf50':'';
+  if(bc)bc.style.outline=(sparplanExtraArt==='coins')?'2px solid #4caf50':'';
+  sparplanExtraDropdown();
+}
 function sparplanExtraDropdown(){
   var sel=document.getElementById('spl-extra-a'); if(!sel)return;
-  var seen={}, aktien=[];
-  SPL_POOL.forEach(function(p){ if(!seen[p.sym]){seen[p.sym]=1; aktien.push({v:p.sym,n:p.name+' ('+p.sym+')'});} });
-  aktienListe.concat(getEigeneAktien()).forEach(function(a){ if(a&&a.symbol&&!seen[a.symbol]){seen[a.symbol]=1; aktien.push({v:a.symbol,n:(a.name||a.symbol)+' ('+a.symbol+')'});} });
-  var coins=(aktuelleCoins||[]).map(function(c){return {v:'coin:'+c.id,n:c.name+' ('+c.symbol.toUpperCase()+')'};});
+  var opts=[];
+  if(sparplanExtraArt==='coins'){
+    opts=(aktuelleCoins||[]).map(function(c){return {v:'coin:'+c.id,n:c.name+' ('+c.symbol.toUpperCase()+')'};});
+  }else{
+    var seen={};
+    SPL_POOL.forEach(function(p){ if(!seen[p.sym]){seen[p.sym]=1; opts.push({v:p.sym,n:p.name+' ('+p.sym+')'});} });
+    aktienListe.concat(getEigeneAktien()).forEach(function(a){ if(a&&a.symbol&&!seen[a.symbol]){seen[a.symbol]=1; opts.push({v:a.symbol,n:(a.name||a.symbol)+' ('+a.symbol+')'});} });
+  }
   var cur=sel.value;
-  function grp(label,arr){ return '<optgroup label="'+label+'">'+arr.map(function(o){return '<option value="'+o.v+'">'+o.n+'</option>';}).join('')+'</optgroup>'; }
-  sel.innerHTML=grp('Aktien',aktien)+(coins.length?grp('Coins',coins):'');
-  if(cur){ sel.value=cur; }
+  sel.innerHTML=opts.map(function(o){return '<option value="'+o.v+'">'+o.n+'</option>';}).join('');
+  if(cur&&opts.some(function(o){return o.v===cur;}))sel.value=cur;
+}
+async function sparplanGesamtwert(d){ return (await sparplanWert(d))+(d.tresor||0); }
+async function sparplanExtraVerkauf(sym){
+  var d=sparplanLaden();
+  var pos=d.positionen[sym];
+  if(!pos||!(pos.menge>0)){ return; }
+  var kurs=await sparplanPreisEUR(sym);
+  if(!kurs){ var st0=document.getElementById('spl-status'); if(st0)st0.textContent='⚠️ Kurs für '+sparplanKuerzel(sym)+' gerade nicht verfügbar – kurz später nochmal.'; return; }
+  if(!confirm(sparplanName(sym)+' komplett verkaufen zum Kurs '+eur(kurs)+'?'))return;
+  var erloes=pos.menge*kurs;
+  var gewinn=erloes-(pos.kosten||0);
+  var steuer=gewinn>0?gewinn*SPL_STEUER/100:0;
+  var netto=erloes-steuer;
+  d.tresor=(d.tresor||0)+netto;
+  d.gewinnRealisiert=(d.gewinnRealisiert||0)+gewinn;
+  d.verkaufSteuer=(d.verkaufSteuer||0)+steuer;
+  delete d.positionen[sym];
+  d.extra=(d.extra||[]).filter(function(x){return x!==sym;});
+  var g=await sparplanGesamtwert(d);
+  var t=Math.floor(Date.now()/1000);
+  var last=d.verlauf[d.verlauf.length-1];
+  if(last&&t<=last.t)t=last.t+1;
+  d.verlauf.push({t:t,v:Math.round(g*100)/100,e:Math.round(d.eingezahlt*100)/100});
+  if(d.verlauf.length>600)d.verlauf.splice(0,d.verlauf.length-600);
+  sparplanSpeichern(d);
+  var st=document.getElementById('spl-status');
+  if(st)st.textContent='✅ '+sparplanName(sym)+' verkauft: '+eur(erloes)+(gewinn>=0?' · Gewinn +'+eur(gewinn):' · Verlust '+eur(gewinn))+(steuer>0?' · Steuer −'+eur(steuer):'')+' → Tresor '+eur(netto);
+  setTimeout(sparplanAnzeigen,30);
 }
 async function sparplanExtraKauf(){
   var st=document.getElementById('spl-status');
@@ -3802,7 +3848,7 @@ async function sparplanExtraKauf(){
   d.positionen[sym].kosten+=betrag;
   d.eingezahlt+=betrag;
   if(d.symbole.indexOf(sym)<0 && d.extra.indexOf(sym)<0) d.extra.push(sym);
-  var wert=await sparplanWert(d);
+  var wert=await sparplanGesamtwert(d);
   var t=Math.floor(Date.now()/1000);
   var last=d.verlauf[d.verlauf.length-1];
   if(last&&t<=last.t)t=last.t+1;
@@ -3830,7 +3876,7 @@ function sparplanDropdowns(){
   if(b){ b.value=d.ratePro; b.disabled=d.aktiv; }
   var g=document.getElementById('spl-gebuehr');
   if(g){ g.value=d.gebuehrRate; g.disabled=d.aktiv; }
-  sparplanExtraDropdown();
+  sparplanExtraArtSetzen(sparplanExtraArt);
 }
 
 async function sparplanPreisEUR(sym){
@@ -3917,7 +3963,7 @@ async function sparplanRateAusfuehren(){
       }
     }
   }
-  var wert=await sparplanWert(d);
+  var wert=await sparplanGesamtwert(d);
   var t=Math.floor(Date.now()/1000);
   var last=d.verlauf[d.verlauf.length-1];
   if(last&&t<=last.t)t=last.t+1;
@@ -3971,7 +4017,7 @@ async function sparplanRateJetzt(){
   sparplanAnzeigen();
 }
 function sparplanZuruecksetzen(){
-  if(!confirm('Sparplan wirklich zurücksetzen? Alle Sparplan-Positionen und der Verlauf werden gelöscht.'))return;
+  if(!confirm('Sparplan wirklich zurücksetzen? Alle Sparplan-Positionen, der Sparplan-Tresor und der Verlauf werden gelöscht.'))return;
   localStorage.removeItem('mb_sparplan');
   try{if(splChart)splChart.remove();}catch(e){}
   splChart=null; splSerie=null; splEinSerie=null;
@@ -3997,7 +4043,7 @@ async function sparplanPruefen(erzwingen){
 }
 setInterval(function(){ sparplanPruefen(false); }, 60000);
 
-async function sparplanZeile(d,s){
+async function sparplanZeile(d,s,istExtra){
   var p=await sparplanPreisEUR(s);
   var pos=d.positionen[s]||{menge:0,kosten:0};
   var wS=p?pos.menge*p:0;
@@ -4011,26 +4057,33 @@ async function sparplanZeile(d,s){
   }
   var pctTxt=(pc==null)?'':' <span style="color:'+(pc>=0?'#4caf50':'#f44336')+';font-weight:bold">'+(pc>=0?'▲ +':'▼ −')+Math.abs(pc).toFixed(2)+' %</span>';
   var einheit=cid?' Coins':' Stück';
-  return '<div style="margin-bottom:5px"><b>'+sparplanName(s)+'</b> ('+sparplanKuerzel(s)+')'+pctTxt
+  var gewinnTxt='', verkBtn='';
+  if(istExtra){
+    var gw=wS-(pos.kosten||0);
+    gewinnTxt=' <span style="color:'+(gw>=0?'#4caf50':'#f44336')+'">'+(gw>=0?'▲ +':'▼ −')+eur(Math.abs(gw))+'</span>';
+    verkBtn=' <button class="grau" style="font-size:11px;padding:2px 7px;margin-left:4px" onclick="sparplanExtraVerkauf(\''+s+'\')">Verkaufen</button>';
+  }
+  return '<div style="margin-bottom:5px"><b>'+sparplanName(s)+'</b> ('+sparplanKuerzel(s)+')'+pctTxt+verkBtn
     +'<br><span style="color:#bbb">'+pos.menge.toLocaleString('de-DE',{maximumFractionDigits:cid?6:4})+einheit+' · Kurs '+(p?eur(p):'–')
-    +' · Wert '+eur(wS)+' <span style="color:#888">(eingezahlt '+eur(pos.kosten||0)+')</span></span></div>';
+    +' · Wert '+eur(wS)+' <span style="color:#888">(eingezahlt '+eur(pos.kosten||0)+')</span>'+gewinnTxt+'</span></div>';
 }
 async function sparplanAnzeigen(){
   var st=document.getElementById('spl-status'); if(!st)return;
   var d=sparplanLaden();
   var extras=(d.extra||[]).filter(function(s){return d.positionen[s] && d.symbole.indexOf(s)<0;});
-  if(!d.ratenGesamt && !extras.length){
+  if(!d.ratenGesamt && !extras.length && !((d.tresor||0)>0)){
     st.innerHTML=d.aktiv?'▶️ Läuft – warte auf die erste Rate.':'Noch nicht gestartet. 3 Aktien wählen, Betrag setzen, „▶️ Sparplan starten" – oder gleich „⏩ Nächste Rate jetzt".';
     sparplanChartNeu(d); return;
   }
-  var wert=await sparplanWert(d);
+  var posWert=await sparplanWert(d);
+  var wert=posWert+(d.tresor||0);
   var gv=wert-d.eingezahlt;
   var farbe=gv>=0?'#4caf50':'#f44336';
   var zeilen='';
-  for(var i=0;i<3;i++){ zeilen+=await sparplanZeile(d,d.symbole[i]); }
+  for(var i=0;i<3;i++){ zeilen+=await sparplanZeile(d,d.symbole[i],false); }
   if(extras.length){
     zeilen+='<div style="color:#888;font-size:12px;margin:6px 0 3px">➕ Extra dazugekauft</div>';
-    for(var xi=0;xi<extras.length;xi++){ zeilen+=await sparplanZeile(d,extras[xi]); }
+    for(var xi=0;xi<extras.length;xi++){ zeilen+=await sparplanZeile(d,extras[xi],true); }
   }
   var naechste='';
   if(d.aktiv && d.letzteRate){
@@ -4038,9 +4091,18 @@ async function sparplanAnzeigen(){
     naechste='<div style="color:#888">Nächste Rate in '+tage+' Tag(en) – oder „⏩ Nächste Rate jetzt".</div>';
   }
   var divNettoGes=(d.dividendenGesamt||0)-(d.steuerGesamt||0);
+  var tresorZeile='';
+  if((d.tresor||0)>0 || (d.gewinnRealisiert||0)!==0){
+    var grFarbe=(d.gewinnRealisiert||0)>=0?'#4caf50':'#f44336';
+    tresorZeile='<div>🔒 Sparplan-Tresor: <b>'+eur(d.tresor||0)+'</b>'
+      +' <span style="color:#888">(realisierter Gewinn <span style="color:'+grFarbe+'">'+((d.gewinnRealisiert||0)>=0?'+':'')+eur(d.gewinnRealisiert||0)+'</span>'
+      +((d.verkaufSteuer||0)>0?', Steuer −'+eur(d.verkaufSteuer):'')+')</span></div>';
+  }
   st.innerHTML=zeilen
     +'<div style="border-top:1px solid #333;margin-top:6px;padding-top:6px">Raten: <b>'+d.ratenGesamt+'</b> · Eingezahlt: <b>'+eur(d.eingezahlt)+'</b></div>'
-    +'<div>Aktueller Wert: <b>'+eur(wert)+'</b> <span style="color:'+farbe+';font-weight:bold">('+(gv>=0?'+':'')+eur(gv)+')</span></div>'
+    +'<div>Gesamtwert: <b>'+eur(wert)+'</b> <span style="color:'+farbe+';font-weight:bold">('+(gv>=0?'+':'')+eur(gv)+')</span>'
+      +((d.tresor||0)>0?' <span style="color:#888">– davon Depot '+eur(posWert)+' + Tresor '+eur(d.tresor)+'</span>':'')+'</div>'
+    +tresorZeile
     +'<div>Dividenden erhalten: <b>'+eur(d.dividendenGesamt||0)+'</b>'
       +((d.steuerGesamt>0)?' · Steuer −'+eur(d.steuerGesamt)+' · angelegt '+eur(divNettoGes):' (wieder angelegt)')+'</div>'
     +'<div style="color:#888">Σ Gebühren + Kauf-Aufschlag: '+eur(d.kostenGesamt||0)+'</div>'
